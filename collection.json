@@ -1,0 +1,24 @@
+{
+  "name": "developer",
+  "display_name": "Developer",
+  "version": "1.1.0",
+  "description": "Unified development experience for building, evolving, and shipping agent-index collections — from first idea through marketplace submission.",
+  "author": "agent-index",
+  "license": "open",
+  "category": "developer-tools",
+  "agent_index_min_version": "2.1.0",
+  "api": [
+    "develop",
+    "preflight",
+    "developer-guide",
+    "developer-tutorial",
+    "optimize"
+  ],
+  "dependencies": [
+    "agent-index-core"
+  ],
+  "external_dependencies": [],
+  "eol_date": null,
+  "marketplace_url": "https://github.com/agent-index/agent-index-marketplace-developer",
+  "support_url": "https://agent-index.ai/support"
+}

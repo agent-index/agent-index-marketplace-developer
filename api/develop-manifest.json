@@ -1,0 +1,24 @@
+{
+  "name": "develop",
+  "type": "skill",
+  "display_name": "Develop",
+  "collection": "developer",
+  "collection_version": "1.1.0",
+  "version": "1.0.0",
+  "eol_date": null,
+  "eol_warning_days": 60,
+  "stateful": true,
+  "setup_template": "develop-setup.md",
+  "dependency_status": "complete",
+  "missing_dependencies": [],
+  "parameter_provenance": {
+    "output_path": "member-overridable",
+    "experience_level": "member-defined",
+    "auto_preflight": "member-overridable"
+  },
+  "dependencies": {
+    "skills": [],
+    "tasks": []
+  },
+  "external_dependencies": []
+}

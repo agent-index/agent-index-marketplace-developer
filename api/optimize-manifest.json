@@ -1,0 +1,28 @@
+{
+  "name": "optimize",
+  "type": "task",
+  "display_name": "Optimize",
+  "collection": "developer",
+  "collection_version": "1.1.0",
+  "version": "1.0.0",
+  "eol_date": null,
+  "eol_warning_days": 60,
+  "stateful": false,
+  "produces_artifacts": true,
+  "produces_shared_artifacts": false,
+  "setup_template": "optimize-setup.md",
+  "dependency_status": "complete",
+  "missing_dependencies": [],
+  "parameter_provenance": {
+    "default_mode": "member-overridable",
+    "script_language": "org-mandated",
+    "include_gray_area": "member-overridable"
+  },
+  "dependencies": {
+    "skills": [],
+    "tasks": []
+  },
+  "external_dependencies": [],
+  "reads_from": null,
+  "writes_to": null
+}

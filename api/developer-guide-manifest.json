@@ -1,0 +1,22 @@
+{
+  "name": "developer-guide",
+  "type": "skill",
+  "display_name": "Developer Guide",
+  "collection": "developer",
+  "collection_version": "1.1.0",
+  "version": "1.0.0",
+  "eol_date": null,
+  "eol_warning_days": 60,
+  "stateful": false,
+  "setup_template": "developer-guide-setup.md",
+  "dependency_status": "complete",
+  "missing_dependencies": [],
+  "parameter_provenance": {
+    "detail_level": "member-defined"
+  },
+  "dependencies": {
+    "skills": [],
+    "tasks": []
+  },
+  "external_dependencies": []
+}
