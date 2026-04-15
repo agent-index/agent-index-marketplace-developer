@@ -1,7 +1,7 @@
 ---
 name: developer-collection-setup
 type: collection-setup
-version: 1.0.0
+version: 1.1.0
 collection: developer
 description: Org-level configuration for the Developer collection — sets defaults for where collections are authored and what preflight strictness level to enforce.
 upgrade_compatible: true

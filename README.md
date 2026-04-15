@@ -22,7 +22,7 @@ You describe what you want your collection to do — in plain language or with t
 
 ## Prerequisites
 
-- agent-index-core v2.1.0 or later
+- agent-index-core v3.0.0 or later
 - No external systems required
 
 ## Development Lifecycle

@@ -45,7 +45,7 @@ None currently tracked.
 
 ### v2.0 — Structural Changes (breaking)
 
-- **Plugin-aware development.** If agent-index adds a plugin system (bundling collections with MCP server configurations), extend the develop skill to scaffold plugin manifests and the preflight task to validate plugin structure.
+- **Plugin-aware development.** If agent-index adds a plugin system (bundling collections with shared configuration and exec bundles), extend the develop skill to scaffold plugin manifests and the preflight task to validate plugin structure.
 
 ---
 
