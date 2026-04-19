@@ -1,18 +1,18 @@
 {
   "name": "developer",
   "display_name": "Developer",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Unified development experience for building, evolving, and shipping agent-index collections — from first idea through marketplace submission.",
   "author": "agent-index",
   "license": "open",
   "category": "developer-tools",
   "agent_index_min_version": "3.0.0",
   "api": [
-    "develop",
-    "preflight",
-    "developer-guide",
-    "developer-tutorial",
-    "optimize"
+    {"name":"develop","triggers":[{"phrase":"develop a collection","capability":"develop","description":"Start or continue developing a collection"},{"phrase":"work on my collection","capability":"develop","description":"Open the development workflow for a collection"},{"phrase":"build my collection","capability":"develop","description":"Continue building a collection in progress"}]},
+    {"name":"preflight","triggers":[{"phrase":"preflight check","capability":"preflight","description":"Run pre-submission checks on a collection"},{"phrase":"is my collection ready","capability":"preflight","description":"Validate a collection before publishing"},{"phrase":"ready to ship","capability":"preflight","description":"Run final checks before marketplace submission"}]},
+    {"name":"developer-guide","triggers":[{"phrase":"developer guide","capability":"developer-guide","description":"Access the collection development reference"},{"phrase":"how to build collections","capability":"developer-guide","description":"Read the development guide"},{"phrase":"collection authoring reference","capability":"developer-guide","description":"Open the developer reference docs"}]},
+    {"name":"developer-tutorial","triggers":[{"phrase":"developer tutorial","capability":"developer-tutorial","description":"Get a guided intro to collection development"},{"phrase":"how does development work","capability":"developer-tutorial","description":"Learn the collection development workflow"}]},
+    {"name":"optimize","triggers":[{"phrase":"optimize my collection","capability":"optimize","description":"Analyze and improve a collection's performance"},{"phrase":"improve my collection","capability":"optimize","description":"Get suggestions for collection improvements"},{"phrase":"collection optimization","capability":"optimize","description":"Run optimization analysis on a collection"}]}
   ],
   "dependencies": [
     "agent-index-core"
