@@ -1,7 +1,7 @@
 ---
 name: optimize
 type: task
-version: 1.0.0
+version: 1.1.0
 collection: developer
 description: Audits collection workflows for token efficiency — identifies deterministic steps that could be extracted into parameterized scripts, estimates savings, and generates the scripts.
 stateful: false

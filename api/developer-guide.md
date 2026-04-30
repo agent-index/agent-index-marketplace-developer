@@ -1,7 +1,7 @@
 ---
 name: developer-guide
 type: skill
-version: 1.0.0
+version: 1.2.0
 collection: developer
 description: Always-available reference skill that answers questions about agent-index development — searches standards, authoring guide, file format specs, and capability provider docs so developers don't have to.
 stateful: false
@@ -36,9 +36,9 @@ When the developer asks a question about agent-index development, find the answe
 
 1. `standards.md` — the formal specification. Answers "what is required?"
 2. `agent-index-file-format-standards.md` — template definitions and authoring conventions. Answers "what format should this file be?"
-3. `collection-authoring-guide.md` — practical patterns and design guidance. Answers "how should I approach this?"
+3. `collection-authoring-guide.md` — practical patterns and design guidance. Answers "how should I approach this?" (As of v1.6.0, includes the "Designing for Native Permissions" section covering aifs_share, aifs_unshare, aifs_get_permissions, aifs_search, aifs_transfer_ownership, the if_revision write pattern, and adapter contract pre-flight checks.)
 4. `capability-provider-spec.md` — capability provider system. Answers questions about provider/consumer declarations, bindings, and runtime resolution.
-5. `filesystem-adapter-spec.md` — remote filesystem access. Answers questions about aifs_* tools, auth, and remote file layout.
+5. `agent-index-filesystem/SPEC.md` — remote filesystem adapter contract. Answers questions about `aifs_*` tools, auth, and remote file layout. Currently at v2.0.0 (gdrive adapter ships v2.0; OneDrive and S3 adapters retain v1.0 contract until their own implementations land — check `adapter.json` `contract_version` for what a given install actually supports).
 
 Read the relevant document(s) before answering. Do not rely on memory of document contents — always verify against the source. If the answer comes from a specific section, mention which document and section so the developer can find it themselves if they want to read further.
 
@@ -61,6 +61,10 @@ Match the developer's level:
 **"Can I do X?"** — Check standards for hard constraints, then the authoring guide for conventions. Distinguish between "the spec prohibits this" and "the convention discourages this" and "nothing prevents this, but consider..."
 
 **"What's the pattern for X?"** — Check the authoring guide's pattern sections. If the guide covers it, present the pattern with the rationale. If not, check first-party collections for precedent.
+
+**"How do I share / check permissions / audit a resource?"** (v3.1.0+) — These map to specific `aifs_*` ops: `aifs_share` for granting access, `aifs_unshare` for revoking, `aifs_get_permissions` for inspecting, `aifs_search` for permission-aware enumeration, `aifs_transfer_ownership` for offboarding (optional per backend). The full operation specs live in `agent-index-filesystem/SPEC.md`. The authoring patterns for using them inside a collection's tasks live in `collection-authoring-guide.md` "Designing for Native Permissions". Always direct the developer to both — the SPEC for the contract, the authoring guide for the right pattern of use.
+
+**"What admin tasks ship with agent-index-core?"** (v3.1.0+) — As of agent-index-core 3.1.0: `invite-member`, `remove-member`, `view-permissions` (member-facing), `view-audit`, `verify-workspace-policy` are the access-control admin tasks. Pre-existing admin tasks: `create-org`, `edit-org`, `publish-updates`, `apply-updates`. Read the relevant task's `.md` in `/agent-index-core/api/` for behavior.
 
 ### Constraints
 

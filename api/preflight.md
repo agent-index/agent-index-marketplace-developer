@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.0.0
+version: 1.2.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -160,6 +160,16 @@ This is where preflight goes beyond validate-collection. Check:
 - [ ] If collection version MAJOR > 1, verify `/upgrade/` contains at least one migration file
 - [ ] Migration files follow naming convention (e.g., `1-to-2.md`)
 
+**ROADMAP version match (if `ROADMAP.md` exists):**
+- [ ] If the ROADMAP contains a `Current version: X.Y.Z` line, it matches `collection.json` `version`
+- [ ] Mismatch is a WARNING (the ROADMAP is supplementary; the CHANGELOG is canonical), but it usually means the ROADMAP was forgotten during the version bump
+
+**Adapter manifest bundle freshness (if `adapter.json` exists at the collection root):**
+- [ ] If `adapter.json` declares `exec_bundle_entry`, verify the file at that path exists
+- [ ] Compare `adapter.json` `bundle_built_at` (ISO timestamp) against the actual mtime of the bundle file. If the bundle is newer than `bundle_built_at` by more than a minute, ERROR — the adapter manifest is referencing a stale build timestamp
+- [ ] If `adapter.json` declares `exec_bundle_checksum` (`sha256:<hex>`), compute the bundle's actual sha256 and compare. Mismatch is an ERROR — the manifest's checksum is stale, members will see verification failures
+- [ ] If `adapter.json` exists but `bundle_built_at` or `exec_bundle_checksum` is absent, WARNING — these fields are required for trustable distribution
+
 **On success:** Proceed to Step 5.
 **On failure:** Record version inconsistencies. Errors for hard mismatches, warnings for suspicious patterns.
 
@@ -228,6 +238,19 @@ These are warnings and notes, not hard errors:
 - [ ] Describes the lifecycle or workflow the collection supports
 - [ ] References CHANGELOG.md for version history
 
+**README freshness (added in preflight v1.2):**
+- [ ] Every name in `collection.json` `api` array appears in `README.md` (case-insensitive substring match). If any API member is unmentioned, WARNING — the README is likely stale relative to the collection. Most often this is what happens when new tasks ship and the README isn't updated.
+- [ ] If `README.md` contains numerical claims like "All N tools" or "N skills" or "N tasks," verify N matches the actual count in `collection.json`. Mismatch is a WARNING — README is stale.
+- [ ] If `README.md` mentions a version number (e.g., "v3.0.0", "as of 2.1.0"), verify it isn't ahead of `collection.json` `version` (forward references suggest someone bumped the README without bumping the collection) and isn't trailing by more than one MINOR version (suggests README hasn't been touched for several releases). Mismatches are NOTES.
+
+**CLAUDE.md template alias coverage (agent-index-core only — added in preflight v1.2):**
+
+This check applies only when the collection being preflighted is `agent-index-core`:
+- [ ] Read `.claude/CLAUDE.md.template`. Locate the "Core aliases" table (markdown table whose header includes `Request pattern` and `Route to`).
+- [ ] For every API entry where `type: task`, verify the alias `@ai:{name}` appears somewhere in that table. WARNING for each task missing.
+- [ ] The Core aliases table is supposed to be a fast-path index for member discoverability. New admin-side tasks shipped in this release that aren't in the table will resolve via the catch-all but won't surface in the documented routing.
+- [ ] Skills are exempt from this check — most skills are reactive and don't have explicit `@ai:` invocation patterns.
+
 **CHANGELOG format:**
 - [ ] Entries in reverse chronological order (newest first)
 - [ ] Format: `## [MAJOR.MINOR.PATCH] — YYYY-MM-DD`
@@ -258,6 +281,12 @@ These are warnings and notes, not hard errors:
 
 **Authoring note remnants:**
 - [ ] No lines beginning with `# NOTE:` remain in any file (error — these must be removed before publishing)
+
+**Cross-package coordination reminder (added in preflight v1.2):**
+
+If this collection's release introduces new behavior that other collections — particularly the developer collection — should know about, surface a NOTE-level reminder. Heuristics:
+- [ ] If `CHANGELOG.md`'s newest entry mentions any of: "adapter contract", "new ops", "new operations", "new task" (admin or otherwise), "OAuth scope", "permission", "schema change" — emit a NOTE: "This release introduces behavior that the developer collection (`develop` skill, `developer-guide` skill, `preflight` task) may need to know about. Consider whether the developer collection's docs reference this collection's new patterns and bump it accordingly."
+- [ ] This is intentionally a NOTE, not a warning — it's reminding the developer to think about cross-package coordination, not gating release on it.
 
 **On success:** Proceed to Step 8.
 **On failure:** Record each finding at the appropriate severity level.

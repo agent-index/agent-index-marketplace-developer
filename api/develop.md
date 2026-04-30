@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.0.0
+version: 1.2.0
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
@@ -196,6 +196,13 @@ When generating any file, apply these rules from the file format standards:
 **Storage access:** When workflows include data access steps, always specify the tool family (native Read/Write for local, `aifs_*` for remote). Never write bare `Read` without a tool qualifier. Default to local-first unless data is inherently shared.
 
 **Tutorial skill:** Every collection should include a `{collection-name}-tutorial` skill following the established convention — conversational guided tour with two modes (sequential walkthrough and question-answering), 6-8 topics, context-aware.
+
+**Native permissions awareness (v3.1.0+):** When the developer is authoring a task that touches shared resources, surface the right access-control patterns proactively. Specifically:
+
+- **`produces_shared_artifacts: true` requires explicit ACL setup.** If the task creates a *new* shared resource (e.g., a project folder, a bug-report folder, an idea folder), the workflow must include an `aifs_share` step setting the initial ACL. If the task only appends to an existing resource whose ACL is already set, this rule doesn't apply — but document the inheritance assumption clearly. Refer the developer to the "Designing for Native Permissions" section of `collection-authoring-guide.md`.
+- **Shared state files need `if_revision`.** If the task writes to a file that other members might also write to (`activity-log.jsonl`, `action-items.json`, `members-registry.json`, etc.), suggest the revision-aware write pattern: read the file with `aifs_stat` to capture the revision, write with `if_revision=<captured>`, retry on `REVISION_CONFLICT`. Don't suggest this for files only one writer touches — it adds overhead without value.
+- **Adapter contract pre-flight.** Tasks that call any v2.0+ op (`aifs_share`, `aifs_unshare`, `aifs_get_permissions`, `aifs_search`, `aifs_transfer_ownership`) should include a pre-flight check that the local adapter declares `contract_version: "2.0.0"` or higher. The pattern is documented in the authoring guide; suggest copying it into the task's pre-flight section.
+- **Don't manage permissions in agent-index-side state.** If the developer is tempted to maintain a per-collection permission cache, grants log, or resolved view, push back: backend ACLs are the source of truth, agent-index never elevates privilege, and parallel state creates a confused-deputy risk. The full reasoning is in the `system-design` idea on the access-control project.
 
 ### Constraints
 

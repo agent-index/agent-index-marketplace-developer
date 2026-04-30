@@ -1,5 +1,27 @@
 # Developer Collection — Changelog
 
+## [1.2.0] — 2026-04-30
+
+### Added
+
+- **`develop` skill: native permissions awareness (v3.1.0+).** When the developer is authoring a task that touches shared resources, `develop` proactively surfaces the right access-control patterns: tasks with `produces_shared_artifacts: true` need an `aifs_share` step in their workflow, shared state files need `if_revision`, tasks calling v2.0+ ops need an adapter `contract_version` pre-flight. Cross-references the new "Designing for Native Permissions" section in `collection-authoring-guide.md`. Pushes back on agent-index-side permission state (grants log, resolved view) — backend ACLs are the source of truth.
+- **`developer-guide` skill: v3.1.0 awareness.** Updated priority-order list of source documents to flag the new "Designing for Native Permissions" section in the authoring guide and the `agent-index-filesystem/SPEC.md` v2.0.0 contract (with note about the gdrive-only contract status). Two new common-question patterns: "How do I share / check permissions / audit a resource?" and "What admin tasks ship with agent-index-core?" — both v3.1.0+.
+- **`preflight` task: four new check categories** (v1.2.0):
+  - **README freshness** — every name in `collection.json` `api` array appears in README; numerical claims like "All N tools" match the actual count; version mentions in the README don't drift from `collection.json` `version`.
+  - **ROADMAP version match** — if `ROADMAP.md` exists with a `Current version: X.Y.Z` line, it must match `collection.json`.
+  - **Adapter manifest bundle freshness** — if `adapter.json` exists at the collection root, `bundle_built_at` and `exec_bundle_checksum` are checked against the actual bundle file (mtime + sha256).
+  - **CLAUDE.md template alias coverage** (agent-index-core only) — every `type: task` API entry should appear in the Core aliases table in `.claude/CLAUDE.md.template`.
+  - **Cross-package coordination reminder** — if the CHANGELOG mentions adapter contracts, new ops, new tasks, OAuth scope changes, permission, or schema changes, emits a NOTE to remind the developer to consider whether the developer collection's docs reference the new patterns.
+
+### Changed
+
+- `develop` 1.1.0 → 1.2.0
+- `developer-guide` 1.1.0 → 1.2.0
+- `preflight` 1.1.0 → 1.2.0
+- All API-member manifests bumped to `collection_version: 1.2.0`
+
+---
+
 ## [1.1.1] — 2026-04-19
 
 ### Added
