@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.2.0
+version: 1.2.1
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -169,6 +169,17 @@ This is where preflight goes beyond validate-collection. Check:
 - [ ] Compare `adapter.json` `bundle_built_at` (ISO timestamp) against the actual mtime of the bundle file. If the bundle is newer than `bundle_built_at` by more than a minute, ERROR — the adapter manifest is referencing a stale build timestamp
 - [ ] If `adapter.json` declares `exec_bundle_checksum` (`sha256:<hex>`), compute the bundle's actual sha256 and compare. Mismatch is an ERROR — the manifest's checksum is stale, members will see verification failures
 - [ ] If `adapter.json` exists but `bundle_built_at` or `exec_bundle_checksum` is absent, WARNING — these fields are required for trustable distribution
+
+**Resource-listings broadcast freshness (added in preflight v1.2):**
+
+The `agent-index-resource-listings` repo holds three directory files that broadcast version availability to `check-updates`, `edit-org`'s adapter-update flow, and `refresh-marketplace-cache`. Whenever a release ships, the relevant directory entry MUST be updated. Preflight checks this for the collection currently under review:
+
+- [ ] **Marketplace collections:** if the collection is one listed in `marketplace-directory.json` (any entry under `collections[]`), check that the entry's `current_version` matches `collection.json` `version`. ERROR on mismatch — the broadcast is stale, admins won't see the upgrade.
+- [ ] **Filesystem adapters:** if the collection has an `adapter.json` at root, check that the entry in `filesystem-adapter-directory.json` matches both `current_version` and (where applicable) `contract_version`. ERROR on mismatch.
+- [ ] **Infrastructure (core, marketplace):** if the collection name matches an entry in `infrastructure-directory.json` (`agent-index-core`, `agent-index-marketplace`), check that the entry's `current_version` matches `collection.json` `version`. ERROR on mismatch — without this update, admins can't discover that core/marketplace has a new release.
+- [ ] If the collection isn't represented in any directory: NOTE only (org-internal collections aren't required to publish, but a newly-published collection that should be discoverable but isn't listed will fall through this check; the cross-package coordination reminder picks it up).
+
+The check works by reading the directory files via a relative path (`../agent-index-resource-listings/`) when run from a sibling clone of the resource-listings repo, or via a configurable `resource_listings_path` parameter when not. If neither is reachable, surface a NOTE: "Could not locate agent-index-resource-listings; skipped broadcast freshness check. Verify manually."
 
 **On success:** Proceed to Step 5.
 **On failure:** Record version inconsistencies. Errors for hard mismatches, warnings for suspicious patterns.

@@ -1,5 +1,16 @@
 # Developer Collection — Changelog
 
+## [1.2.1] — 2026-04-30
+
+### Added
+
+- **`infrastructure-directory.json`** awareness across the developer collection. The new index file in `agent-index-resource-listings` broadcasts the latest versions of `agent-index-core` and `agent-index-marketplace` so admins running `check-updates` can discover infrastructure releases the same way they discover collection and adapter releases.
+- **`develop` skill (v1.2.1):** new "Resource-listings broadcast" subsection — every release of any collection, adapter, or core/marketplace must update the matching directory entry as part of the same release. Pattern: bump `version` in the collection / adapter, update `current_version` in the relevant directory file, bump `last_updated`. Release is incomplete without all three.
+- **`developer-guide` skill (v1.2.1):** new common-question pattern: "How do I broadcast a new release so admins discover it?" — explains the three directory files and the consistency requirement.
+- **`preflight` task (v1.2.1):** new check category "Resource-listings broadcast freshness" in Step 4. Errors when the matching directory entry's `current_version` (and `contract_version` for adapters) doesn't match the collection's actual version. Note-level when the resource-listings repo isn't reachable from the preflight context.
+
+---
+
 ## [1.2.0] — 2026-04-30
 
 ### Added

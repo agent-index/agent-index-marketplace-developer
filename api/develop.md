@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.2.0
+version: 1.2.1
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
@@ -196,6 +196,14 @@ When generating any file, apply these rules from the file format standards:
 **Storage access:** When workflows include data access steps, always specify the tool family (native Read/Write for local, `aifs_*` for remote). Never write bare `Read` without a tool qualifier. Default to local-first unless data is inherently shared.
 
 **Tutorial skill:** Every collection should include a `{collection-name}-tutorial` skill following the established convention — conversational guided tour with two modes (sequential walkthrough and question-answering), 6-8 topics, context-aware.
+
+**Resource-listings broadcast (every release):** When the developer ships a new version of any collection, adapter, or core/marketplace, remind them that the corresponding entry in the `agent-index-resource-listings` repo must be updated as part of the same release. Without it, `check-updates` can't see the new version and `edit-org`'s adapter-update flow can't fetch the right zip. The three directory files:
+
+- `marketplace-directory.json` — for marketplace collections (projects, strategy, capture, etc.)
+- `filesystem-adapter-directory.json` — for filesystem adapters (gdrive, onedrive, s3). Update `current_version` and, where the collection has an adapter contract, `contract_version`.
+- `infrastructure-directory.json` — for `agent-index-core` and `agent-index-marketplace`. Required for every infrastructure release.
+
+The pattern is: bump `current_version` in `collection.json` (or `adapter.json` for adapters), update the matching entry in the relevant resource-listing directory, and bump `last_updated`. The release is incomplete without all three. Preflight v1.2+ checks this consistency and errors if the directory is stale relative to the collection.
 
 **Native permissions awareness (v3.1.0+):** When the developer is authoring a task that touches shared resources, surface the right access-control patterns proactively. Specifically:
 

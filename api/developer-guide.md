@@ -1,7 +1,7 @@
 ---
 name: developer-guide
 type: skill
-version: 1.2.0
+version: 1.2.1
 collection: developer
 description: Always-available reference skill that answers questions about agent-index development — searches standards, authoring guide, file format specs, and capability provider docs so developers don't have to.
 stateful: false
@@ -65,6 +65,8 @@ Match the developer's level:
 **"How do I share / check permissions / audit a resource?"** (v3.1.0+) — These map to specific `aifs_*` ops: `aifs_share` for granting access, `aifs_unshare` for revoking, `aifs_get_permissions` for inspecting, `aifs_search` for permission-aware enumeration, `aifs_transfer_ownership` for offboarding (optional per backend). The full operation specs live in `agent-index-filesystem/SPEC.md`. The authoring patterns for using them inside a collection's tasks live in `collection-authoring-guide.md` "Designing for Native Permissions". Always direct the developer to both — the SPEC for the contract, the authoring guide for the right pattern of use.
 
 **"What admin tasks ship with agent-index-core?"** (v3.1.0+) — As of agent-index-core 3.1.0: `invite-member`, `remove-member`, `view-permissions` (member-facing), `view-audit`, `verify-workspace-policy` are the access-control admin tasks. Pre-existing admin tasks: `create-org`, `edit-org`, `publish-updates`, `apply-updates`. Read the relevant task's `.md` in `/agent-index-core/api/` for behavior.
+
+**"How do I broadcast a new release so admins discover it?"** — The `agent-index-resource-listings` repo holds three directory files: `marketplace-directory.json` (collections), `filesystem-adapter-directory.json` (adapters), `infrastructure-directory.json` (core + agent-index-marketplace). Whenever you bump a `collection.json` `version` or an `adapter.json` `version`, update the matching directory entry in the same release. The directory files are what `check-updates` polls and `edit-org`'s adapter-update step reads. Without the directory update, admins running `check-updates` won't see your new version. Preflight v1.2+ has a Resource-listings broadcast freshness check in Step 4 that errors when the directory is stale.
 
 ### Constraints
 
