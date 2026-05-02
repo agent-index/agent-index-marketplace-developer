@@ -1,8 +1,8 @@
 {
   "name": "developer",
   "display_name": "Developer",
-  "version": "1.2.1",
-  "description": "Unified development experience for building, evolving, and shipping agent-index collections \u2014 from first idea through marketplace submission.",
+  "version": "1.2.2",
+  "description": "Unified development experience for building, evolving, and shipping agent-index collections \u2014 from first idea through marketplace submission. v1.2.2: preflight Step 5 now performs a value-equality check on manifest-vs-frontmatter version, plus a new manifest collection_version vs collection.json version sync check \u2014 closes per-capability-manifest-vs-md-version-drift idea.",
   "author": "agent-index",
   "license": "open",
   "category": "developer-tools",

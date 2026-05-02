@@ -1,5 +1,21 @@
 # Developer Collection — Changelog
 
+## [1.2.2] — 2026-05-02
+
+### Fixed / Added
+
+- **`preflight` task Step 5 — Manifest-frontmatter agreement, tightened.** The pre-1.2.2 wording said "verify the manifest's name, type, version, collection, stateful, dependencies, and external_dependencies match the frontmatter." That was ambiguous about whether the comparison checked value equality or merely field presence; in practice it was being interpreted loosely and not catching real version drift (e.g., `projects/api/edit-project-manifest.json` `version: 1.0.0` vs `projects/api/edit-project.md` frontmatter `version: 2.0.0`). The check is now explicit: it is a **value-equality** comparison, with `version` called out specifically because the `.md` frontmatter is the canonical source of truth (it's what `member-index.json` records, what `org-setup`'s "Needs Attention" reads, and what `check-updates` Step 4 compares against). A drifted manifest `version` is silently wrong because no consumer reads it, so it must be caught at author time.
+- **`preflight` task Step 5 — New manifest collection_version sync check.** Sibling check that verifies each API member manifest's `collection_version` field exactly equals the `version` field in `collection.json`. Catches the common author-forgot-to-resync case (bump `collection.json` but not the manifests). Closes developer-collection idea `per-capability-manifest-vs-md-version-drift`.
+- Both checks are paired in the same Step 5 section: together they catch *vertical* drift (manifest version vs `.md` frontmatter version, per-capability) and *horizontal* drift (manifest `collection_version` vs `collection.json` `version`, collection-level). Same hazard class as bug `20260430-8d20ea22` — two declared facts that must agree.
+
+### Changed
+
+- `preflight` task v1.2.1 → v1.2.2.
+- `collection.json` description leads with the v1.2.2 changes.
+- All API-member manifests bumped to `collection_version: 1.2.2`.
+
+---
+
 ## [1.2.1] — 2026-04-30
 
 ### Added

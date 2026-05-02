@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.2.1
+version: 1.2.2
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -201,7 +201,12 @@ The check works by reading the directory files via a relative path (`../agent-in
 - [ ] Every setup template's `target` field references a skill or task that exists in this collection's `/api/` directory
 
 **Manifest-frontmatter agreement:**
-- [ ] For each API member, verify the manifest's name, type, version, collection, stateful, dependencies, and external_dependencies match the frontmatter in the corresponding `.md` file
+- [ ] For each API member, verify the manifest's name, type, version, collection, stateful, dependencies, and external_dependencies match the frontmatter in the corresponding `.md` file. This is a **value-equality** check, not a presence check — the values must be byte-for-byte identical (after JSON/YAML parsing). In particular: the manifest `version` field must equal the `.md` frontmatter `version` field exactly. The `.md` frontmatter is the canonical source of truth for the capability version (it's what `member-index.json` records at install/upgrade time, what `org-setup`'s "Needs Attention" comparison reads, and what `check-updates` Step 4 compares against). A drifted manifest `version` is silently wrong — `member-index` and `org-setup` don't read the manifest, so authors who bump the `.md` frontmatter sometimes forget to bump the manifest, leaving the manifest stale. ERROR with the path to both files and the two values when any field disagrees.
+
+**Manifest collection_version sync (added in preflight v1.2.2):**
+- [ ] For each API member's manifest, verify `collection_version` exactly equals the `version` field in `collection.json`. Each release should bump every manifest's `collection_version` to the new collection version so consumers reading the manifest can correctly attribute the capability to its release. ERROR with the path and the two values when they disagree. (Authors who bump `collection.json` `version` without re-running their manifest-sync step are the typical cause.)
+
+The two checks above are paired: together they catch both *vertical* drift (manifest version vs `.md` frontmatter version, the per-capability version) and *horizontal* drift (manifest `collection_version` vs `collection.json` `version`, the collection-level version). Both are forms of "two declared facts that must agree" — the same hazard class as bug `20260430-8d20ea22` (where a comparison read the wrong version field). Closes developer-collection idea `per-capability-manifest-vs-md-version-drift`.
 
 **Capability provider references (if applicable):**
 - [ ] If `collection.json` has a `provides` array, every `implemented_by` value references a name in the `api` array
