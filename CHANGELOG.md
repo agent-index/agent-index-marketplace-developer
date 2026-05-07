@@ -1,5 +1,11 @@
 # Developer Collection — Changelog
 
+## [1.2.4] — 2026-05-07
+
+### Fixed
+
+- **`preflight.md` frontmatter version bumped to match the manifest.** The 1.2.3 release expanded `preflight.md` substantially with two new Step 4 sub-checks (adapter supported-ops vs bundle implementation, shipped shell-script line endings) and bumped `preflight-manifest.json` from 1.2.2 to 1.2.3, but left `preflight.md`'s frontmatter `version` field at 1.2.2. This is the exact drift that 1.2.2's preflight Step 5 is supposed to catch — and would have, if the developer collection had been preflighted against itself before the 1.2.3 release. Caught post-publish during dev_install upgrade verification on 2026-05-07. Filed as bug `20260507-8d20ea22-8` (release-discipline bug; the next release author should always run preflight against the developer collection itself before pushing).
+
 ## [1.2.3] — 2026-05-05
 
 ### Added
