@@ -170,6 +170,31 @@ This is where preflight goes beyond validate-collection. Check:
 - [ ] If `adapter.json` declares `exec_bundle_checksum` (`sha256:<hex>`), compute the bundle's actual sha256 and compare. Mismatch is an ERROR — the manifest's checksum is stale, members will see verification failures
 - [ ] If `adapter.json` exists but `bundle_built_at` or `exec_bundle_checksum` is absent, WARNING — these fields are required for trustable distribution
 
+**Adapter supported-ops vs bundle implementation (added in preflight v1.2.3, closes bug `20260502-8d20ea22-2`):**
+
+If `adapter.json` declares `supported_operations`, every op name listed must actually be implemented in the bundle. Pre-1.2.3 the freshness checks above caught manifest-vs-bundle drift on timestamps and checksums, but not on the *content* of the bundle relative to the manifest's claims. The gdrive 2.2.0 release shipped with `supported_operations` declaring `share`, `unshare`, `getPermissions`, `search`, `transferOwnership` while the bundle was byte-identical to 2.1.3 (no implementations) — and timestamp/checksum agreed with each other, so the freshness check passed. This new check closes that gap.
+
+- [ ] Read `adapter.json` `supported_operations` (array of strings).
+- [ ] Read the bundle file (path from `adapter.json` `exec_bundle_entry`, or `dist/aifs-exec.bundle.js` as the v3 default).
+- [ ] For each op name in `supported_operations`, search the bundle's text content for at least one of these patterns (case-insensitive substring match is sufficient):
+  - the literal op name (e.g., `share`)
+  - the canonical wrapper name `aifs_<snake_case_op>` (e.g., `aifs_share`)
+  - a handler-pattern match: `case '<op>':`, `'<op>'\s*:\s*(async\s*)?function`, `async\s+<op>\s*\(`
+- [ ] If any op name has zero matches across all three patterns: ERROR with the bundle path, the `adapter.json` path, the missing op name(s), and the patterns that were tried. The author has either declared an op the bundle doesn't implement, or named the op differently in the bundle than in the manifest. Either way, the manifest is lying about its bundle's capabilities.
+- [ ] If `supported_operations` is empty or absent but `adapter.json` declares `contract_version >= 2.0.0`: WARNING — the v2.0 contract requires at least the read ops (`read`, `write`, `list`, `exists`, `stat`, `delete`, `copy`); an empty `supported_operations` array is suspicious.
+
+The check is grep-based rather than AST-based for portability — the bundle could be in any of several JS bundling formats, and parsing it correctly is much more work than substring-matching. False positives from substring matching are theoretically possible (e.g., "share" appears in some unrelated comment) but extremely unlikely to coincide with all the v2.0 op names simultaneously. The check is asymmetric: false positives (claiming the bundle has an op when it doesn't) are the dangerous case; false negatives (incorrectly flagging a bundle that does have the op under a name we don't recognize) are recoverable by adjusting the search patterns.
+
+**Shipped shell-script line endings (added in preflight v1.2.3, closes bug `20260504-8d20ea22-7`):**
+
+Shell scripts shipped in a collection's runtime artifact directories must have LF line endings, regardless of the host OS the author is committing from. Pre-1.2.3 nothing prevented a Windows-host commit from including `\r\n` line endings in `*.sh` files; the resulting script fails to execute under bash with a confusing error (`bash: script.sh: $'\r': command not found`). The 2026-05-04 helper smoke-test on dev_install hit this exact failure — `mcp-servers/permission-helper/show-plan.sh` shipped with CRLF and bash refused it.
+
+- [ ] Walk the collection's shipped-artifact directories: `lib/`, `bin/`, and any subdirectories. Collect every file whose name ends in `.sh`.
+- [ ] For each `*.sh` file, read the file as bytes and search for any `0x0D` byte (CR character).
+- [ ] If any `0x0D` byte is present (whether as part of a CRLF sequence or a standalone CR): ERROR with the file path and a count of the offending lines. The fix is mechanical — convert to LF-only line endings (`dos2unix`, `sed -i 's/\r$//'`, or "Save With Unix Line Endings" in any text editor) before commit.
+
+The check is shell-script-only. Other text files (markdown, JSON, etc.) tolerate either line ending without breaking — they're out of scope. Shell scripts that legitimately need CR characters are rare enough to warrant explicit `# allow-crlf` markers (out of scope for this version — flag as ERROR universally; the rare false-positive is acceptable cost for catching the much-more-common Windows-host accident).
+
 **Resource-listings broadcast freshness (added in preflight v1.2):**
 
 The `agent-index-resource-listings` repo holds three directory files that broadcast version availability to `check-updates`, `edit-org`'s adapter-update flow, and `refresh-marketplace-cache`. Whenever a release ships, the relevant directory entry MUST be updated. Preflight checks this for the collection currently under review:

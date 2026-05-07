@@ -1,5 +1,19 @@
 # Developer Collection — Changelog
 
+## [1.2.3] — 2026-05-05
+
+### Added
+
+- **`preflight` task Step 4 — Adapter supported-ops vs bundle implementation.** New release-artifact integrity check. For every op name in `adapter.json` → `supported_operations`, search the bundle file for at least one of three recognizable implementation signatures (literal op name, canonical `aifs_<snake_case_op>` wrapper, or handler-pattern match like `case '<op>':` or `async <op>(`). Zero matches → ERROR with the bundle path, the manifest path, the missing op names, and the patterns that were tried. Catches the failure mode in bug `20260502-8d20ea22-2`: gdrive 2.2.0's `adapter.json` declared `share`/`unshare`/`getPermissions`/`search`/`transferOwnership` while the bundle was byte-identical to 2.1.3 (no implementations). The pre-1.2.3 freshness checks (timestamp + checksum) couldn't catch it because the broken state was self-consistent. Grep-based for portability across bundling formats; asymmetric (false positives are the dangerous case, false negatives are recoverable by adjusting search patterns). Also surfaces a WARNING when `contract_version >= 2.0.0` but `supported_operations` is empty or absent — the v2.0 contract requires at least the read ops.
+
+- **`preflight` task Step 4 — Shipped shell-script line endings.** New release-artifact integrity check. Walks the collection's `lib/`, `bin/`, and any subdirectories; for every `*.sh` file, scans for `0x0D` bytes (CR characters). Any hit → ERROR with the file path. Closes bug `20260504-8d20ea22-7`: `mcp-servers/permission-helper/show-plan.sh` shipped with CRLF line endings from a Windows host commit and bash refused to execute it (`bash: $'\r': command not found`). The fix is mechanical — convert to LF (`dos2unix`, `sed -i 's/\r$//'`, or "Save With Unix Line Endings"). Shell-script-only by design; other text formats tolerate either line ending.
+
+### Closes
+
+- Idea `preflight-bundle-vs-supported-ops` (developer-collection) — both sub-checks shipped under the broadened scope.
+- Bug `20260502-8d20ea22-2` (already resolved by gdrive 2.2.1) — preflight now prevents recurrence.
+- Bug `20260504-8d20ea22-7` (already resolved in core 3.3.1's apply-updates LF normalization) — preflight now catches it at upstream-release time too.
+
 ## [1.2.2] — 2026-05-02
 
 ### Fixed / Added
