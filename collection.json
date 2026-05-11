@@ -1,8 +1,8 @@
 {
   "name": "developer",
   "display_name": "Developer",
-  "version": "1.2.4",
-  "description": "Unified development experience for building, evolving, and shipping agent-index collections \u2014 from first idea through marketplace submission. v1.2.4: fix-up release \u2014 bumps preflight.md frontmatter version to match its manifest. The 1.2.3 release expanded preflight.md with two new sub-checks but left the frontmatter version at 1.2.2 while bumping the manifest to 1.2.3 \u2014 the exact drift the 1.2.2 check is meant to catch. Caught post-publish on dev_install upgrade. v1.2.3: preflight Step 4 gains two release-artifact integrity checks \u2014 adapter supported-ops vs bundle implementation, and shipped shell-script line endings. v1.2.2: per-capability manifest-vs-frontmatter version drift check.",
+  "version": "1.3.0",
+  "description": "Unified development experience for building, evolving, and shipping agent-index collections — from first idea through marketplace submission. v1.3.0: ships preflight-cli.sh at lib/preflight-cli.sh — a bash CLI runner for the mechanical preflight checks (frontmatter↔manifest version sync, manifest↔collection.json sync, CHANGELOG↔collection.json, LF in *.sh, JSON parse, mid-word truncation). Push scripts can now call `node lib/preflight-cli.sh --collection <path>` as a mandatory pre-step and abort on errors — closes the release-script-runs-preflight idea (https://github.com/agent-index — would have caught the developer 1.2.3 frontmatter drift bug at push time). v1.2.4: fix-up release. v1.2.3: preflight Step 4 release-artifact integrity checks. v1.2.2: per-capability manifest-vs-frontmatter version drift check.",
   "author": "agent-index",
   "license": "open",
   "category": "developer-tools",

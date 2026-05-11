@@ -1,5 +1,20 @@
 # Developer Collection — Changelog
 
+## [1.3.0] — 2026-05-11
+
+### Added
+
+- **`lib/preflight-cli.sh`** — bash CLI runner for the mechanical preflight checks. Invocation: `bash lib/preflight-cli.sh --collection <path>`. Returns 0 on pass, 1 on errors, 2 on invocation problems. Runs the subset of `@ai:preflight` checks that don't require agent reasoning: (1) frontmatter `version:` ↔ matching `*-manifest.json` `version`, (2) every `*-manifest.json` `collection_version` ↔ `collection.json` `version`, (3) `CHANGELOG.md` top entry matches `collection.json` version, (4) every shipped `*.sh` has LF-only line endings, (5) every `*.json` parses cleanly, (6) mid-word truncation heuristic on `*.md` files.
+
+  Designed for invocation from release push scripts as a mandatory pre-step: `node ../agent-index-marketplace-developer/lib/preflight-cli.sh --collection . && git push ...`. Aborts the push if any error fires. Closes idea `release-script-runs-preflight`. Would have caught the bugs in developer 1.2.3 (frontmatter drift in `preflight.md`) and the bash-mount truncation incidents that hit 3.6.0 / 3.6.1 publish flows. Agent-side `@ai:preflight` (the full task) remains the canonical comprehensive check; this CLI just covers the structural subset, runnable in non-agent contexts.
+
+### Changed
+
+- `preflight` task version 1.2.4 → 1.3.0. All API manifests' `collection_version` bumped 1.2.4 → 1.3.0.
+
+---
+
+
 ## [1.2.4] — 2026-05-07
 
 ### Fixed
