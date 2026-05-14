@@ -1,5 +1,19 @@
 # Developer Collection — Changelog
 
+## [1.3.1] — 2026-05-13
+
+### Added
+
+- **`lib/preflight-cli.sh` Check 7 — JS-integrity heuristic.** Catches the "validate.js debris" corruption class: JS files that have a clean apparent end (legitimate `module.exports`) followed by debris (duplicate function definitions, a second `module.exports`, stray prose fragments) past the apparent end. Surfaces as ERROR when: (a) more than one top-level `module.exports = ` line, or (b) duplicate top-level `function foo(...)` declarations. Would have caught the validate.js corruption that shipped from an earlier edit and blocked AC-016 testing on 2026-05-13.
+
+### Notes
+
+- No spec edits to `preflight.md`; v1.2.x's preflight workflow already documents Step 4 release-artifact integrity checks at the agent-task level. This patch adds the same hazard class to the runnable CLI used by release push scripts.
+- All API manifests' `collection_version` bumped 1.3.0 → 1.3.1. `preflight` task version unchanged.
+
+---
+
+
 ## [1.3.0] — 2026-05-11
 
 ### Added

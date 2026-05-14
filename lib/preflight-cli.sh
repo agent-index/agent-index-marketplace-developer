@@ -80,7 +80,7 @@ if [[ -d "$COLL/api" ]]; then
         fi
     done
 fi
-log "  errors: $((${#ERRORS[@]} - e1))"
+log "  errors: $(( ${#ERRORS[@]} - e1 ))"
 
 # ── Check 2: manifest collection_version <-> collection.json version ────────
 log "Check 2: *-manifest.json collection_version <-> collection.json version ($COLL_VERSION)"
@@ -94,7 +94,7 @@ if [[ -d "$COLL/api" ]]; then
         fi
     done
 fi
-log "  errors: $((${#ERRORS[@]} - e2))"
+log "  errors: $(( ${#ERRORS[@]} - e2 ))"
 
 # ── Check 3: CHANGELOG top entry matches collection.json version ────────────
 log "Check 3: CHANGELOG top entry matches collection.json version"
@@ -110,7 +110,7 @@ if [[ -f "$COLL/CHANGELOG.md" ]]; then
 else
     warn "  CHANGELOG.md not found"
 fi
-log "  errors: $((${#ERRORS[@]} - e3))"
+log "  errors: $(( ${#ERRORS[@]} - e3 ))"
 
 # ── Check 4: *.sh files have LF line endings ────────────────────────────────
 log "Check 4: *.sh files have LF line endings (no CRLF)"
@@ -121,7 +121,7 @@ while IFS= read -r -d '' f; do
         err "  $(realpath --relative-to="$COLL" "$f"): contains CRLF"
     fi
 done < <(find "$COLL" -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -print0)
-log "  errors: $((${#ERRORS[@]} - e4))"
+log "  errors: $(( ${#ERRORS[@]} - e4 ))"
 
 # ── Check 5: *.json files parse cleanly (weak — checks balanced braces) ─────
 log "Check 5: *.json files have balanced braces"
@@ -139,7 +139,7 @@ while IFS= read -r -d '' f; do
         *) err "  $(realpath --relative-to="$COLL" "$f"): doesn't end with } or ] (last char: '$lastchar')" ;;
     esac
 done < <(find "$COLL" -name '*.json' -not -path '*/node_modules/*' -not -path '*/.git/*' -print0)
-log "  errors: $((${#ERRORS[@]} - e5))"
+log "  errors: $(( ${#ERRORS[@]} - e5 ))"
 
 # ── Check 6: mid-word truncation heuristic for *.md files ───────────────────
 log "Check 6: *.md mid-word truncation heuristic"
@@ -154,7 +154,37 @@ while IFS= read -r -d '' f; do
         warn "  $rel: ends mid-word — last chars: \"$tail40\""
     fi
 done < <(find "$COLL" -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' -print0)
-log "  warnings: $((${#WARNINGS[@]} - w6))"
+log "  warnings: $(( ${#WARNINGS[@]} - w6 ))"
+
+# ── Check 7: JS-integrity heuristic for *.js files (added in v1.3.1) ────────
+# Catches the "validate.js debris" corruption class: a file ends cleanly at one
+# point and then has trailing debris (duplicate function definitions, a second
+# module.exports, stray prose fragments) past the apparent end. Surfaces as:
+#   - more than one `module.exports = ` line
+#   - duplicate top-level `function foo(...)` declarations
+#   - content after the last `module.exports` that isn't whitespace or a closing brace
+log "Check 7: *.js JS-integrity heuristic"
+e7=${#ERRORS[@]}
+while IFS= read -r -d '' f; do
+    # Count module.exports = lines in THIS file only (pipe avoids grep -c multi-file output)
+    me_count=$(grep '^module\.exports\s*=' "$f" 2>/dev/null | wc -l | tr -d ' ')
+    me_count=${me_count:-0}
+    if [[ "$me_count" -gt 1 ]]; then
+        rel=$(realpath --relative-to="$COLL" "$f")
+        err "  $rel: $me_count top-level 'module.exports =' lines (suspected debris from a botched write — file may have content past its apparent end)"
+        continue
+    fi
+
+    # Duplicate top-level function declarations (function foo(...))
+    dup_fns=$(grep -E '^function [a-zA-Z_$][a-zA-Z0-9_$]*\s*\(' "$f" 2>/dev/null | sort | uniq -d)
+    if [[ -n "$dup_fns" ]]; then
+        rel=$(realpath --relative-to="$COLL" "$f")
+        first_dup=$(echo "$dup_fns" | head -1)
+        err "  $rel: duplicate top-level function declaration ($first_dup) — suspected debris"
+        continue
+    fi
+done < <(find "$COLL" -name '*.js' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -print0)
+log "  errors: $(( ${#ERRORS[@]} - e7 ))"
 
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
@@ -163,13 +193,15 @@ if [[ "${#ERRORS[@]}" -eq 0 ]] && [[ "${#WARNINGS[@]}" -eq 0 ]]; then
     log "✓ preflight passed ($COLL_NAME v$COLL_VERSION)"
     exit 0
 fi
-if [[ "${#ERRORS[@]}" -gt 0 ]]; then
-    log "✗ ${#ERRORS[@]} error(s):"
+err_n=${#ERRORS[@]}
+warn_n=${#WARNINGS[@]}
+if (( err_n > 0 )); then
+    log "✗ $err_n error(s):"
     for e in "${ERRORS[@]}"; do log "$e"; done
 fi
-if [[ "${#WARNINGS[@]}" -gt 0 ]]; then
-    log "⚠ ${#WARNINGS[@]} warning(s):"
+if (( warn_n > 0 )); then
+    log "⚠ $warn_n warning(s):"
     for w in "${WARNINGS[@]}"; do log "$w"; done
 fi
-[[ "${#ERRORS[@]}" -gt 0 ]] && exit 1
+(( err_n > 0 )) && exit 1
 exit 0
