@@ -1,5 +1,23 @@
 # Developer Collection — Changelog
 
+## [1.4.0] — <RELEASE_DATE> — companion to core 3.7.4
+
+### Added
+
+- **`lib/preflight-cli.sh` Check 8 — `inherit: false` spec usage vs adapter contract version.** Closes section 4 of idea `helper-spec-needs-inherit-passthrough`. Catches the forward-compat regression where a spec emits `inherit: false` against an org adapter that declares `contract_version < 2.0.0`. Pre-2.0 adapters silently ignore the field; the share applies with default-additive semantics rather than override — degraded, not failing. Warning-level (not error-level) so forward-compatible specs targeting future adapter rollouts aren't blocked.
+- **`preflight.md` Step 4 — `inherit: false` spec usage sub-check** describing the bash CLI's Check 8 mechanics at the agent-task documentation level. Resolution order: `ADAPTER_CONTRACT_OVERRIDE` env var, then candidate install layouts; skip-with-notice if no adapter contract_version found.
+
+### Fixed (correctness, pre-release)
+
+- **Check 8 reads `contract_version` (filesystem-contract field) NOT `adapter_version` (adapter package version field).** The two are distinct surfaces — `contract_version` lives in `mcp-servers/filesystem/adapter.json`, `adapter_version` lives in `agent-index.json`'s `remote_filesystem.exec` block. They share a major version coincidentally today (both at 2.x) but are conceptually different. The original tech-design draft conflated them; corrected during pre-build cross-component verification per the 3.7.3 retro process change.
+
+### Notes
+
+- All API manifests' `collection_version` bumped 1.3.1 → 1.4.0. `preflight` task version 1.3.0 → 1.4.0 (minor — new check addition is a meaningful behavior change).
+- Companion release: agent-index-core 3.7.4 "Closing the Loop" — closes four bugs surfaced by 3.7.3 verification cycle plus the non-admin onboarding blocker.
+
+---
+
 ## [1.3.1] — 2026-05-13
 
 ### Added

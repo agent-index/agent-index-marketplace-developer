@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.3.0
+version: 1.4.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -205,6 +205,17 @@ The `agent-index-resource-listings` repo holds three directory files that broadc
 - [ ] If the collection isn't represented in any directory: NOTE only (org-internal collections aren't required to publish, but a newly-published collection that should be discoverable but isn't listed will fall through this check; the cross-package coordination reminder picks it up).
 
 The check works by reading the directory files via a relative path (`../agent-index-resource-listings/`) when run from a sibling clone of the resource-listings repo, or via a configurable `resource_listings_path` parameter when not. If neither is reachable, surface a NOTE: "Could not locate agent-index-resource-listings; skipped broadcast freshness check. Verify manually."
+
+**`inherit: false` spec usage vs adapter contract version (added in preflight v1.4.0, closes section 4 of idea `helper-spec-needs-inherit-passthrough`):**
+
+The permission-helper v1.1 spec format added an `inherit: boolean` field to share operations. The adapter contract version (`contract_version` in `adapter.json`, distinct from `adapter_version`) governs whether the adapter actually honors the field. Pre-2.0 adapters silently ignore `inherit`, applying the share with default-additive semantics instead of override semantics — degraded behavior, not a failure. Forward-compatible specs targeting future post-2.0 adapter rollouts must remain authorable, so this check is a WARNING (not an ERROR).
+
+- [ ] Read the adapter's `contract_version` from `mcp-servers/filesystem/adapter.json` (NOT `adapter_version` from `agent-index.json` — they're different fields). Resolution order: `ADAPTER_CONTRACT_OVERRIDE` env var override (for CI / synthetic tests), then candidate install layouts (`$COLL/../mcp-servers/...`, `$COLL/../../mcp-servers/...`, `$AGENT_INDEX_INSTALL_DIR/mcp-servers/...`).
+- [ ] If no `contract_version` can be resolved: skip the check with a notice. (Preflight may be running outside an install context where no adapter is materialized.)
+- [ ] If resolved `contract_version` MAJOR is `>= 2`: pass silently. The org's adapter honors `inherit`; no warning needed.
+- [ ] If resolved `contract_version` MAJOR is `< 2`: scan the collection's `api/*.md` for `"inherit": false` (JSON form) or `inherit: false` (YAML form). For each match, surface a WARNING with file path and line number, naming the resolved contract version and the requirement (≥ 2.0.0).
+
+Implemented in `lib/preflight-cli.sh` as Check 8.
 
 **On success:** Proceed to Step 5.
 **On failure:** Record version inconsistencies. Errors for hard mismatches, warnings for suspicious patterns.

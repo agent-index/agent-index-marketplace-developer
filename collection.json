@@ -1,7 +1,7 @@
 {
   "name": "developer",
   "display_name": "Developer",
-  "version": "1.3.1",
+  "version": "1.4.0",
   "description": "Unified development experience for building, evolving, and shipping agent-index collections — from first idea through marketplace submission. v1.3.1: preflight-cli.sh gains a Check 7 — JS-integrity heuristic that catches duplicate top-level module.exports blocks, duplicate function declarations, and other debris-past-apparent-end corruption (would have caught the validate.js debris that broke the Node permission-helper). v1.3.0: ships preflight-cli.sh at lib/preflight-cli.sh — a bash CLI runner for the mechanical preflight checks (frontmatter↔manifest version sync, manifest↔collection.json sync, CHANGELOG↔collection.json, LF in *.sh, JSON parse, mid-word truncation). Push scripts can now call `node lib/preflight-cli.sh --collection <path>` as a mandatory pre-step and abort on errors — closes the release-script-runs-preflight idea (https://github.com/agent-index — would have caught the developer 1.2.3 frontmatter drift bug at push time). v1.2.4: fix-up release. v1.2.3: preflight Step 4 release-artifact integrity checks. v1.2.2: per-capability manifest-vs-frontmatter version drift check.",
   "author": "agent-index",
   "license": "open",

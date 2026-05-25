@@ -186,6 +186,61 @@ while IFS= read -r -d '' f; do
 done < <(find "$COLL" -name '*.js' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -print0)
 log "  errors: $(( ${#ERRORS[@]} - e7 ))"
 
+# ── Check 8: inherit:false spec vs adapter contract version (added in v1.4.0) ─
+# Catches forward-compat regressions: spec emits `inherit: false` but the org's
+# adapter declares contract_version < 2.0.0 and silently ignores the field.
+# Share applies with default semantics rather than override — degraded but not
+# failing. Warning-level so forward-compatible specs aren't blocked.
+#
+# IMPORTANT: reads adapter CONTRACT version, NOT adapter PACKAGE version.
+# `contract_version` (filesystem-contract level, e.g. 2.0.0) and
+# `adapter_version` (package version, e.g. 2.3.0) are different surfaces;
+# they happen to share a major today but are conceptually distinct.
+#
+# Resolution: ADAPTER_CONTRACT_OVERRIDE env var overrides anything; otherwise
+# search common install layouts; skip-with-notice if nothing found.
+log "Check 8: inherit:false spec vs adapter contract_version"
+w8=${#WARNINGS[@]}
+adapter_contract=""
+
+if [[ -n "${ADAPTER_CONTRACT_OVERRIDE:-}" ]]; then
+    adapter_contract="$ADAPTER_CONTRACT_OVERRIDE"
+fi
+
+if [[ -z "$adapter_contract" ]]; then
+    for candidate in \
+        "$COLL/../mcp-servers/filesystem/adapter.json" \
+        "$COLL/../../mcp-servers/filesystem/adapter.json" \
+        "${AGENT_INDEX_INSTALL_DIR:-}/mcp-servers/filesystem/adapter.json"
+    do
+        if [[ -n "$candidate" ]] && [[ -f "$candidate" ]]; then
+            adapter_contract=$(grep -oE '"contract_version":[[:space:]]*"[^"]+"' "$candidate" 2>/dev/null \
+                | head -1 \
+                | sed 's/.*"contract_version":[[:space:]]*"\([^"]*\)".*/\1/')
+            if [[ -n "$adapter_contract" ]]; then break; fi
+        fi
+    done
+fi
+
+if [[ -z "$adapter_contract" ]]; then
+    log "  skipped: no adapter contract_version found (preflight may be running outside an install context — set ADAPTER_CONTRACT_OVERRIDE env var to force a value)"
+else
+    adapter_major=$(echo "$adapter_contract" | cut -d. -f1)
+    log "  adapter contract_version: $adapter_contract (major: $adapter_major)"
+
+    if [[ "$adapter_major" -lt 2 ]]; then
+        while IFS= read -r -d '' f; do
+            line=$(grep -nE '"inherit"[[:space:]]*:[[:space:]]*false|^[[:space:]]*inherit:[[:space:]]*false' "$f" 2>/dev/null | head -1)
+            if [[ -n "$line" ]]; then
+                lineno=$(echo "$line" | cut -d: -f1)
+                rel=$(realpath --relative-to="$COLL" "$f")
+                warn "  $rel:$lineno — uses inherit:false but adapter contract is $adapter_contract (requires 2.0.0+; pre-2.0 adapters silently ignore inherit)"
+            fi
+        done < <(find "$COLL/api" -maxdepth 2 -name '*.md' -print0 2>/dev/null)
+    fi
+fi
+log "  warnings: $(( ${#WARNINGS[@]} - w8 ))"
+
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
