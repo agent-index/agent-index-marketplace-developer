@@ -1,12 +1,12 @@
 {
   "name": "developer",
   "display_name": "Developer",
-  "version": "1.4.0",
-  "description": "Unified development experience for building, evolving, and shipping agent-index collections — from first idea through marketplace submission. v1.3.1: preflight-cli.sh gains a Check 7 — JS-integrity heuristic that catches duplicate top-level module.exports blocks, duplicate function declarations, and other debris-past-apparent-end corruption (would have caught the validate.js debris that broke the Node permission-helper). v1.3.0: ships preflight-cli.sh at lib/preflight-cli.sh — a bash CLI runner for the mechanical preflight checks (frontmatter↔manifest version sync, manifest↔collection.json sync, CHANGELOG↔collection.json, LF in *.sh, JSON parse, mid-word truncation). Push scripts can now call `node lib/preflight-cli.sh --collection <path>` as a mandatory pre-step and abort on errors — closes the release-script-runs-preflight idea (https://github.com/agent-index — would have caught the developer 1.2.3 frontmatter drift bug at push time). v1.2.4: fix-up release. v1.2.3: preflight Step 4 release-artifact integrity checks. v1.2.2: per-capability manifest-vs-frontmatter version drift check.",
+  "version": "1.5.0",
+  "description": "Unified development experience for building, evolving, and shipping agent-index collections \u2014 from first idea through marketplace submission. v1.5.0: access-model currency \u2014 develop teaches the three access patterns (open-commons / owned-content / two-tier hybrid) with the verified-outcome grant gate, pointer conventions, org sharing vocabulary, collaborative-acls.json scaffolding and id:-anchor guidance; preflight gains Step 7.5 Access-Model Consistency (errors on shared writes without ACL provisioning and on retired constructs); optimize Step 7 example modernized to the pointer-index model. Earlier: see CHANGELOG.",
   "author": "agent-index",
   "license": "open",
   "category": "developer-tools",
-  "agent_index_min_version": "2.1.0",
+  "agent_index_min_version": "3.9.0",
   "api": [
     {
       "name": "develop",

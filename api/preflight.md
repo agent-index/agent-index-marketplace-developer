@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.4.0
+version: 1.5.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -148,6 +148,7 @@ This is where preflight goes beyond validate-collection. Check:
 - [ ] The version in `collection.json` has a corresponding entry in `CHANGELOG.md`
 - [ ] The newest CHANGELOG entry matches the `collection.json` version
 - [ ] If they don't match, this is an ERROR: either the version wasn't bumped or the changelog wasn't updated
+- [ ] If `README.md` has a `## Version` stanza, it equals the `collection.json` version (ERROR — three of eight shipped collections had stale stanzas in the 2026-06 sweep; the CLI's Check 9 covers this mechanically)
 
 **API member versions vs. collection version:**
 - [ ] No API member has a MAJOR version higher than the collection's MAJOR version (warning — unusual, may indicate a version bump was missed at collection level)
@@ -339,6 +340,30 @@ This check applies only when the collection being preflighted is `agent-index-co
 If this collection's release introduces new behavior that other collections — particularly the developer collection — should know about, surface a NOTE-level reminder. Heuristics:
 - [ ] If `CHANGELOG.md`'s newest entry mentions any of: "adapter contract", "new ops", "new operations", "new task" (admin or otherwise), "OAuth scope", "permission", "schema change" — emit a NOTE: "This release introduces behavior that the developer collection (`develop` skill, `developer-guide` skill, `preflight` task) may need to know about. Consider whether the developer collection's docs reference this collection's new patterns and bump it accordingly."
 - [ ] This is intentionally a NOTE, not a warning — it's reminding the developer to think about cross-package coordination, not gating release on it.
+
+**On success:** Proceed to Step 7.5.
+**On failure:** Record each finding at the appropriate severity level.
+
+---
+
+### Step 7.5: Access-Model Consistency Check (core 3.9+ model)
+
+Validates that the collection's shared-data design matches the current access model (the three patterns established by the 2026-06 cross-collection audit). Skip this step entirely if no api file reads or writes remote paths.
+
+**ERROR-level:**
+
+- [ ] If any api file writes under a `/shared/{dir}/` path: `collaborative-acls.json` exists at the collection root and declares a grant covering that directory. A shared write path with no install-time ACL provisioning rebuilds the pre-audit broken model — members' writes will be denied at runtime.
+- [ ] Every directory named in `collaborative-acls.json` is created by the collection-setup template's Setup Completion section (provisioning can't grant on a directory nothing creates).
+- [ ] No file references retired constructs: `projects-manifest.json`, `shared_projects_path`, `aifs-bridge`, `aifs-call.sh`, or `server.bundle.js`.
+
+**WARNING-level:**
+
+- [ ] Any workflow that applies an access grant gates dependent writes (pointers, scope updates, member-facing confirmation) on a verified outcome — helper outcome `"applied"` or an independent `aifs_get_permissions` check. Flag grant steps with no verification language.
+- [ ] Files plausibly written by multiple members (`activity-log.jsonl`, `*-items.json`, registries) use the `if_revision` pattern.
+- [ ] Workflows that resolve remote paths by name in trees where members can create same-named siblings should use `id:` anchors (duplicate-name resolution bug 20260606-62a14c43-230135-db13). Name-paths are acceptable where a creation task enforces slug uniqueness.
+- [ ] Hard-delete workflows account for `aifs_delete` being non-recursive (delete contents first).
+- [ ] Member-facing sharing language uses the org vocabulary: "share" = read, "collaborator" = read + write, "share with the org" = everybody reads.
+- [ ] No leading-slash `/members/{member_hash}/...` paths intended as LOCAL workspace writes — the leading slash reads as the deprecated remote member space. Local paths are relative (`members/{hash}/...`) with the native tool family named explicitly.
 
 **On success:** Proceed to Step 8.
 **On failure:** Record each finding at the appropriate severity level.

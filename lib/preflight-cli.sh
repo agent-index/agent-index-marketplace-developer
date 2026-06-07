@@ -241,6 +241,22 @@ else
 fi
 log "  warnings: $(( ${#WARNINGS[@]} - w8 ))"
 
+# ── Check 9: README Version stanza matches collection.json (added in v1.5.0) ─
+# A "## Version" stanza in README.md is optional; when present it must equal
+# collection.json's version. Caught stale at 3 of 8 collections in the 2026-06
+# docs-currency sweep (projects 3.0.4-vs-4.0.0, strategy, capture).
+log "Check 9: README Version stanza matches collection.json"
+e9=${#ERRORS[@]}
+if [[ -f "$COLL/README.md" ]]; then
+    readme_ver=$(awk '/^## Version$/{getline; while($0==""){getline}; print; exit}' "$COLL/README.md" 2>/dev/null | tr -d '[:space:]')
+    if [[ -n "$readme_ver" ]] && [[ "$readme_ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        if [[ "$readme_ver" != "$COLL_VERSION" ]]; then
+            err "  README.md Version stanza is $readme_ver but collection.json is $COLL_VERSION"
+        fi
+    fi
+fi
+log "  errors: $(( ${#ERRORS[@]} - e9 ))"
+
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

@@ -1,5 +1,24 @@
 # Developer Collection — Changelog
 
+## [1.5.0] — 2026-06-06 — access-model currency (companion to the 2026-06 cross-collection audit)
+
+### Changed
+
+- **`develop` 1.3.0 — "Native permissions awareness (v3.1.0+)" replaced by "Access-model design (core 3.9+)".** Teaches the three proven patterns (open-commons / owned-content / two-tier hybrid) and their structural implications; supersedes the per-task `aifs_share` guidance (grants on member-owned content are owner-applied via the permission-change-helper with the verified-outcome HARD GATE). Adds the org sharing vocabulary, pointer conventions (overwrite-only, scope shapes, parent/hygiene rules, owner_departed, invisible-until-shared), `id:`-anchor preference (duplicate-name bug 20260606-62a14c43-230135-db13), and the non-recursive `aifs_delete` contract. Phase 1 gains a default-visibility question; Phase 5 scaffolds `collaborative-acls.json` and pointer-index creation in Setup Completion.
+- **`preflight` 1.5.0 — new Step 7.5: Access-Model Consistency.** ERRORs: shared write paths without covering `collaborative-acls.json`; ACL dirs not created by Setup Completion; retired constructs (`projects-manifest.json`, `shared_projects_path`, `aifs-bridge`, `server.bundle.js`). WARNINGs: ungated grant steps, missing `if_revision` on multi-writer files, name-path resolution in duplicable trees, recursive-delete assumptions, off-vocabulary sharing language.
+- **`optimize` 1.2.0 — Step 7 example modernized.** The retired projects-manifest loader example replaced with a pointer-index lister.
+- **`developer-guide` 1.3.0** — "How do I share..." answer updated for owner-applied grants; new question pattern "How do I decide who can read/write my collection's data?" mapping the decision rule to the three patterns with reference collections.
+
+- **`develop` — Development Lifecycle section.** The nine-stage process (functional outcomes → solution design review → technical design review → test plan review → dev → test → iterate until bug-free → release → post-release test as a real non-admin member), with the paper-trail expectation: every stage produces a reviewable, resiliently-stored record. Skipping a stage is an explicit decision, never a default.
+- **`develop` Version Bump Flow step 3a** — restamp every manifest's `collection_version` (and touched capabilities' versions) at every bump; five shipped collections had missed this.
+- **`preflight` Step 4** — README `## Version` stanza must equal collection.json version when present (mechanical twin: `lib/preflight-cli.sh` **Check 9**, negative-tested).
+- **`preflight` Step 7.5** — additional warning: leading-slash `/members/{hash}/` paths intended as local writes (deprecated-remote-space lookalike; found in two shipped setup templates).
+
+### Notes
+
+- Docs-only release plus one mechanical check (CLI Check 9): no shared writes, no provisioning, no setup-interface changes (MINOR).
+- `agent_index_min_version` raised to 3.9.0 — the access-model content assumes My Drive member spaces and install-time ACL provisioning.
+
 ## [1.4.0] — <RELEASE_DATE> — companion to core 3.7.4
 
 ### Added

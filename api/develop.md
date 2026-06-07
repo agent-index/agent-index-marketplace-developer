@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.2.1
+version: 1.3.0
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
@@ -62,6 +62,22 @@ Assess the developer's experience level from their language and adjust according
 
 **Mixed signals:** They know some concepts but not others. Response: Explain only what's new to them. Don't over-explain what they already understand.
 
+### Development Lifecycle
+
+All non-trivial development — new collections, major reworks, access-model changes — follows this sequence. Surface it to the developer at the start of any such effort and anchor the work to it. (This is the process that delivered the 2026-06 cross-collection audit; the supporting record conventions live in the org's release checklist.)
+
+1. **Define outcomes and expectations in functional terms** — what members will be able to do, who can see what, what "done" looks like — not technical outcomes. Technical choices serve these; they don't lead.
+2. **Define and review the solution design** — the approach, the access pattern, the member experience. Reviewed and approved before any technical commitment.
+3. **Define and review the technical design** — files, schemas, workflows, provisioning, upgrade path. Reviewed against the solution design.
+4. **Define and review the test plan** — written before building; covers the real roles (test as the role the design assigns, never admin-as-proxy for member behavior) and the live backend where ACLs are involved.
+5. **Dev** — build to the reviewed designs. Deviations go back through review, not silently into code.
+6. **Test** — execute the test plan, rehearsal environment first where one exists.
+7. **Iterate until bug-free** — findings are filed, fixed, and re-tested; the test plan is amended when reality teaches something new.
+8. **Release** — versioned, changelogged, listings broadcast, preflight-gated.
+9. **Test the release** — post-release validation in a real install as a real (non-admin) member; results recorded.
+
+Each stage produces a reviewable record (design doc, test plan, findings, release record, retro) preserved as a resilient record — the paper trail is part of the deliverable, not overhead. Skipping a stage is a decision the developer makes explicitly, not a default.
+
 ### New Collection Flow
 
 #### Phase 1: Understand the Collection
@@ -73,6 +89,7 @@ From their description, identify:
 - Who configures it (org admin) vs. who uses it (members)
 - What distinct capabilities the collection needs (potential skills and tasks)
 - Whether data is local-only, shared, or mixed
+- **Who should see the data by default, and whether members can change that per item** — this determines the access model (see Access-model design under File Format Compliance)
 - Whether external systems are needed (MCP servers, APIs, scripts)
 
 Ask targeted follow-up questions for anything that's unclear. Do not proceed until you have enough to determine the skill/task breakdown.
@@ -134,7 +151,9 @@ Generate every required file for the collection:
    - `/api/{name}-setup.md` — Setup template with all parameters, provenance annotations, Setup Completion, and Upgrade Behavior sections.
    - `/api/{name}-manifest.json` — Manifest with metadata, parameter_provenance, and dependency declarations matching the frontmatter.
 7. `/upgrade/` — Empty directory (created but no files at v1.0.0).
-8. If mechanical steps were identified in Phase 4:
+8. **If the collection has shared directories** (open-commons or hybrid): `collaborative-acls.json` at the collection root declaring the org-wide writer grant for each shared dir. Install/upgrade provisioning applies it automatically (marketplace 2.9+).
+9. **If the access model uses a pointer index**: the collection-setup template's Setup Completion section must create the index directory under `/shared/` (e.g., `/shared/{collection}-index/`).
+10. If mechanical steps were identified in Phase 4:
    - `/apps/{script-name}.py` (or `.js`) — Generated scripts for each mechanical workflow step, following authoring guide script conventions (shebang, dependency check, `--dry-run`, structured JSON output, exit codes).
    - `/apps/requirements.txt` (Python) or `/apps/package.json` (Node) — Pinned dependencies.
    - Task workflow steps that call these scripts are written with explicit script invocations, argument mappings, output parsing instructions, and error handling based on exit codes.
@@ -173,6 +192,7 @@ When preparing a version release:
    - MINOR: new API members, new optional parameters, non-breaking additions
    - PATCH: bug fixes, clarifications, non-behavioral changes
 3. Update `collection.json` version field.
+3a. **Restamp every `api/*-manifest.json`'s `collection_version` to the new version** — and bump each touched capability's `version` (manifest + frontmatter together). Five shipped collections failed preflight Check 2 in the 2026-06 sweep because PATCH releases skipped this step.
 4. Update `CHANGELOG.md` with a new entry at the top. Use the standard format: `## [X.Y.Z] — YYYY-MM-DD` with changes listed under appropriate headings (Added, Changed, Deprecated, Removed, Fixed).
 5. If MAJOR bump: remind the developer they need an upgrade script in `/upgrade/` and must set `eol_date` on the prior major version.
 6. Run preflight if auto_preflight is enabled.
@@ -205,12 +225,22 @@ When generating any file, apply these rules from the file format standards:
 
 The pattern is: bump `current_version` in `collection.json` (or `adapter.json` for adapters), update the matching entry in the relevant resource-listing directory, and bump `last_updated`. The release is incomplete without all three. Preflight v1.2+ checks this consistency and errors if the directory is stale relative to the collection.
 
-**Native permissions awareness (v3.1.0+):** When the developer is authoring a task that touches shared resources, surface the right access-control patterns proactively. Specifically:
+**Access-model design (core 3.9+):** When the collection touches shared resources, the developer must choose one of the three proven access patterns *before* scaffolding. Surface this as an explicit design decision (see the 2026-06 cross-collection audit record at `/shared/projects/core-improvements/artifacts/audit-close.md` for the full rationale). The decision rule:
 
-- **`produces_shared_artifacts: true` requires explicit ACL setup.** If the task creates a *new* shared resource (e.g., a project folder, a bug-report folder, an idea folder), the workflow must include an `aifs_share` step setting the initial ACL. If the task only appends to an existing resource whose ACL is already set, this rule doesn't apply — but document the inheritance assumption clearly. Refer the developer to the "Designing for Native Permissions" section of `collection-authoring-guide.md`.
-- **Shared state files need `if_revision`.** If the task writes to a file that other members might also write to (`activity-log.jsonl`, `action-items.json`, `members-registry.json`, etc.), suggest the revision-aware write pattern: read the file with `aifs_stat` to capture the revision, write with `if_revision=<captured>`, retry on `REVISION_CONFLICT`. Don't suggest this for files only one writer touches — it adds overhead without value.
-- **Adapter contract pre-flight.** Tasks that call any v2.0+ op (`aifs_share`, `aifs_unshare`, `aifs_get_permissions`, `aifs_search`, `aifs_transfer_ownership`) should include a pre-flight check that the local adapter declares `contract_version: "2.0.0"` or higher. The pattern is documented in the authoring guide; suggest copying it into the task's pre-flight section.
-- **Don't manage permissions in agent-index-side state.** If the developer is tempted to maintain a per-collection permission cache, grants log, or resolved view, push back: backend ACLs are the source of truth, agent-index never elevates privilege, and parallel state creates a confused-deputy risk. The full reasoning is in the `system-design` idea on the access-control project.
+- **Open-commons** — everyone reads and writes the same org-level data (e.g., bug-reports). Structure: a `/shared/{dir}/` tree, a `collaborative-acls.json` at the collection root declaring an org-wide writer grant on each shared dir (applied automatically at install/upgrade), and **task-level attribution** — every write records `author_hash`/`author_name` in the data or an activity log, because the backend ACL alone can't tell members apart.
+- **Owned-content** — each item belongs to one member who controls access (e.g., strategy). Structure: content lives in the **owner's own My Drive space** addressed via `id:{member_folder_id}` anchors (never a Shared-Drive folder — folder grants there are Manager-only); access grants are applied **by the owner** through the permission-change-helper flow, never inline in a task workflow and never by an admin on the owner's behalf; **discovery** happens through a pointer index directory under `/shared/`.
+- **Two-tier hybrid** — items can be org-public or private, chosen at creation (e.g., projects, client-intelligence). Structure: both of the above, a creation-time visibility prompt, and **structural inheritance** — child artifacts live inside the parent's tree so they inherit access with zero per-item ceremony.
+
+Whichever pattern applies, hold these invariants:
+
+- **The verified-outcome HARD GATE.** Any workflow step that depends on a grant having been applied (writing a pointer, updating a scope, confirming a share to the member) may proceed only after the helper outcome file reads `"applied"` OR an independent `aifs_get_permissions` confirms the grant. Never write scope state on the assumption that a grant succeeded.
+- **The org sharing vocabulary.** Task language must use it consistently: "share with X" = X can read; "make X a collaborator" = X can read + write; "share with the org" = everybody can read.
+- **Pointer conventions** (when the pattern uses a pointer index): one pointer file per discoverable item; pointers are overwrite-only (never deleted, status `revoked` instead); scope is `"org_public"` | `{readers, collaborators}` | `"private"` | `"revoked"`; the `parent` key is named on first-share and **omitted** on hygiene pointers; invisible-until-shared items have **no pointer at all**; departed owners are annotated `owner_departed`, never silently dropped.
+- **Shared state files need `if_revision`.** If the task writes to a file that other members might also write to (`activity-log.jsonl`, `action-items.json`, etc.), use the revision-aware write pattern: `aifs_stat` to capture the revision, write with `if_revision=<captured>`, retry on `REVISION_CONFLICT`. Don't suggest this for single-writer files — it adds overhead without value.
+- **Adapter contract pre-flight.** Tasks that call any v2.0+ op (`aifs_share`, `aifs_unshare`, `aifs_get_permissions`, `aifs_search`, `aifs_transfer_ownership`) should include a pre-flight check that the local adapter declares `contract_version: "2.0.0"` or higher.
+- **Prefer `id:` anchors over name-paths** anywhere members can create same-named siblings — the gdrive adapter resolves duplicate names arbitrarily (bug 20260606-62a14c43-230135-db13). Name-paths under `/shared` are safe only where a creation task enforces slug uniqueness against the pointer index.
+- **`aifs_delete` is non-recursive.** Hard-delete workflows must delete contents first, then the directory.
+- **Don't manage permissions in agent-index-side state.** If the developer is tempted to maintain a per-collection permission cache, grants log, or resolved view, push back: backend ACLs are the source of truth, agent-index never elevates privilege, and parallel state creates a confused-deputy risk.
 
 ### Constraints
 

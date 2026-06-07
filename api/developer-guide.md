@@ -1,7 +1,7 @@
 ---
 name: developer-guide
 type: skill
-version: 1.2.1
+version: 1.3.0
 collection: developer
 description: Always-available reference skill that answers questions about agent-index development — searches standards, authoring guide, file format specs, and capability provider docs so developers don't have to.
 stateful: false
@@ -62,7 +62,9 @@ Match the developer's level:
 
 **"What's the pattern for X?"** — Check the authoring guide's pattern sections. If the guide covers it, present the pattern with the rationale. If not, check first-party collections for precedent.
 
-**"How do I share / check permissions / audit a resource?"** (v3.1.0+) — These map to specific `aifs_*` ops: `aifs_share` for granting access, `aifs_unshare` for revoking, `aifs_get_permissions` for inspecting, `aifs_search` for permission-aware enumeration, `aifs_transfer_ownership` for offboarding (optional per backend). The full operation specs live in `agent-index-filesystem/SPEC.md`. The authoring patterns for using them inside a collection's tasks live in `collection-authoring-guide.md` "Designing for Native Permissions". Always direct the developer to both — the SPEC for the contract, the authoring guide for the right pattern of use.
+**"How do I share / check permissions / audit a resource?"** (v3.1.0+) — These map to specific `aifs_*` ops: `aifs_share` for granting access, `aifs_unshare` for revoking, `aifs_get_permissions` for inspecting, `aifs_search` for permission-aware enumeration, `aifs_transfer_ownership` for offboarding (optional per backend). The full operation specs live in `agent-index-filesystem/SPEC.md`. Note (core 3.9+): grants on member-owned content are applied by the *owner* via the permission-change-helper flow with a verified outcome, not inline `aifs_share` in a task workflow — see the access-model patterns below.
+
+**"How do I decide who can read/write my collection's data?"** (core 3.9+) — Three proven patterns, one decision rule each: **open-commons** if everyone reads and writes the same org data (a `/shared/{dir}/` + `collaborative-acls.json` org-writer grant + per-write attribution — bug-reports is the reference); **owned-content** if each item belongs to one member who controls access (content in the owner's My Drive via `id:` anchors, owner-applied verified grants, pointer-index discovery — strategy is the reference); **two-tier hybrid** if items can be org-public or private chosen at creation (both mechanisms + a visibility prompt + structural inheritance for child artifacts — projects 4.0 is the reference). The `develop` skill's "Access-model design" section carries the full invariants (verified-outcome gate, sharing vocabulary, pointer conventions); the audit record at `/shared/projects/core-improvements/artifacts/audit-close.md` carries the rationale.
 
 **"What admin tasks ship with agent-index-core?"** (v3.1.0+) — As of agent-index-core 3.1.0: `invite-member`, `remove-member`, `view-permissions` (member-facing), `view-audit`, `verify-workspace-policy` are the access-control admin tasks. Pre-existing admin tasks: `create-org`, `edit-org`, `publish-updates`, `apply-updates`. Read the relevant task's `.md` in `/agent-index-core/api/` for behavior.
 

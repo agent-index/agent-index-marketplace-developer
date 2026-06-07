@@ -1,7 +1,7 @@
 ---
 name: optimize
 type: task
-version: 1.1.0
+version: 1.2.0
 collection: developer
 description: Audits collection workflows for token efficiency — identifies deterministic steps that could be extracted into parameterized scripts, estimates savings, and generates the scripts.
 stateful: false
@@ -215,19 +215,21 @@ For each task with mechanical steps being replaced:
 Example of a rewritten step:
 
 ```markdown
-### Step 2: Load Project Manifest
+### Step 2: List Discoverable Projects
 
-Run the project manifest loader:
+Run the pointer-index lister:
 
 \`\`\`bash
-python {apps_path}/projects-load-manifest.py \
-    --manifest-path "{shared_projects_path}/projects-manifest.json" \
+python {apps_path}/projects-list-index.py \
+    --index-path "/shared/projects-index" \
+    --status active \
     --format json
 \`\`\`
 
-Parse the JSON output. The `data` field contains the manifest entries array.
-If exit code is 1, the manifest file was not found — inform the member and offer
-to create a new project instead.
+Parse the JSON output. The `data` field contains one entry per pointer file
+(name, slug, owner, scope, status, location). If exit code is 1, the index
+directory was not found — inform the member and offer to create a new project
+instead.
 ```
 
 **On success:** Proceed to Step 8.
