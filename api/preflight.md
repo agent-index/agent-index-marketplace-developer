@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.6.0
+version: 1.6.1
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -460,4 +460,31 @@ Present the report to the developer. If there are errors, offer to fix them (inv
 
 ### Behavior
 
-Be thorough and systematic. Check every file, every field, every cross-reference. The value of preflight is that it catches things humans miss. Do not skip checks for
+Be thorough and systematic. Check every file, every field, every cross-reference. The value of preflight is that it catches things humans miss. Do not skip checks for files that "look fine" — run every check against every applicable file.
+
+When reporting issues, be specific about location and fix. Don't say "frontmatter is incomplete" — say "preflight.md is missing the `produces_artifacts` field in frontmatter. Add `produces_artifacts: false` (or `true` if this task produces files)."
+
+When the developer asks to fix issues, apply the minimum change needed. Don't reorganize files or rewrite content that passed checks.
+
+### Output Standards
+
+The report is delivered in chat, not written to a file. Use markdown formatting for readability. Group findings by severity, then by file within each severity level.
+
+### Constraints
+
+- This task is read-only. It examines files but never modifies them.
+- Never skip a check category unless the developer explicitly requests a scoped run.
+- Never mark a collection as passing if any errors were found, regardless of how minor they seem.
+- Never invent new check categories beyond what's defined in the workflow steps.
+
+### Edge Cases
+
+If the collection directory is empty except for collection.json, report all missing files but don't produce an overwhelming list of frontmatter errors for files that don't exist — the missing file errors are sufficient.
+
+If collection.json itself is malformed or missing required fields, report those errors first and note that many downstream checks cannot run without a valid collection.json.
+
+If the developer asks to check a directory that isn't an agent-index collection (no collection.json), say so clearly and suggest they use the develop skill to create one.
+
+If the collection uses capability providers, check provider/consumer declarations but note that full binding validation requires an org context (registered providers) that isn't available at preflight time.
+
+<!-- AIFS:FILE-END -->

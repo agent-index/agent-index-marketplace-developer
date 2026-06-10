@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.4.0
+version: 1.4.1
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
@@ -247,4 +247,23 @@ Whichever pattern applies, hold these invariants:
 ### Constraints
 
 - Never modify files outside the collection directory being worked on.
-- Never modify agent-index-core files, standards.md
+- Never modify agent-index-core files, standards.md, or the authoring guide.
+- Never invent new frontmatter fields not in the file format standards.
+- Never omit required frontmatter fields — use `null` rather than omitting.
+- Never generate files with authoring notes (`# NOTE:`) — those are for the templates only.
+- Always confirm the proposed API surface with the developer before generating files.
+- Always use today's date for new CHANGELOG entries and collection metadata.
+
+### Edge Cases
+
+If the developer asks to build a collection in the `infrastructure` category, explain that this category is reserved for agent-index-core and agent-index-marketplace. Suggest `developer-tools` or another appropriate category.
+
+If the developer asks to build a collection whose name starts with `agent-index-`, explain that this prefix is reserved for official agent-index collections. Suggest an alternative name.
+
+If the developer describes something that's better served by an existing collection, mention that collection and confirm they still want to build a new one.
+
+If the developer wants to add capability provider declarations, read `capability-provider-spec.md` for the full specification and walk them through provider and consumer declarations, including the operation mapping and binding setup.
+
+If the collection being evolved has inconsistencies (e.g., api array doesn't match actual files), flag them before making changes. Offer to fix them as part of the current operation.
+
+<!-- AIFS:FILE-END -->

@@ -1,5 +1,9 @@
 # Developer Collection — Changelog
 
+## [1.6.1] — 2026-06-10 — repair: tail truncations introduced in 1.6.0
+
+The 1.6.0 release commits contained tail-truncated capability specs — a mount-mediated read-modify-write during version restamping wrote stale truncated views back to disk (FCI-1 class; see bug 20260608-8d20ea22-003039-trunc and release record platform-reliability/build-record.md). 1.6.1 splices the complete pre-release tails back under the 1.6.0 content edits, verified byte-exact against the pre-release endings, and stamps the repaired files with AIFS:FILE-END sentinels. No behavioral changes beyond 1.6.0.
+
 ## [1.6.0] — 2026-06-09 — Platform Reliability: file-integrity sentinel authoring + enforcement
 
 Release record: core-improvements `releases/platform-reliability/`. Implements the developer-collection half of the sentinel standard (standards.md § "File-integrity sentinel"); partially addresses `20260608-8d20ea22-003039-trunc` (prevention).
