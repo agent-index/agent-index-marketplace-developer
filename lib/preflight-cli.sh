@@ -257,6 +257,73 @@ if [[ -f "$COLL/README.md" ]]; then
 fi
 log "  errors: $(( ${#ERRORS[@]} - e9 ))"
 
+# ── Check 10: resource-listing directory_version bumped when content changed (v1.5.1) ─
+# Detects the silent-staleness class (bug 20260607-8d20ea22-131906-d1rv): an entry's
+# current_version moved but the directory file's top-level directory_version did not, so
+# check-updates/refresh-marketplace-cache never see the release. Requires a sibling
+# agent-index-resource-listings git clone; skip-with-notice otherwise.
+log "Check 10: resource-listing directory_version bump"
+e10=${#ERRORS[@]}
+RL="$COLL/../agent-index-resource-listings"
+[[ -n "${RESOURCE_LISTINGS_PATH:-}" ]] && RL="$RESOURCE_LISTINGS_PATH"
+if [[ -d "$RL/.git" ]]; then
+  for dir in marketplace-directory.json infrastructure-directory.json filesystem-adapter-directory.json; do
+    f="$RL/$dir"; [[ -f "$f" ]] || continue
+    # did the file change vs HEAD?
+    if ( cd "$RL" && ! git diff --quiet HEAD -- "$dir" 2>/dev/null ); then
+      cur=$(grep -oE '"directory_version"[[:space:]]*:[[:space:]]*"[^"]+"' "$f" | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/')
+      head=$( cd "$RL" && git show "HEAD:$dir" 2>/dev/null | grep -oE '"directory_version"[[:space:]]*:[[:space:]]*"[^"]+"' | head -1 | sed 's/.*"\([0-9.]*\)".*/\1/')
+      if [[ -n "$cur" && "$cur" == "$head" ]]; then
+        # content changed but version identical — but ignore if ONLY directory_version/last_updated differ trivially: still error, content beyond last_updated changed
+        if ( cd "$RL" && git diff HEAD -- "$dir" | grep -E '^[+-]' | grep -vqE '"(last_updated|directory_version)"' ); then
+          err "  $dir: content changed but directory_version is still $cur — staleness checks will not see this release (bug 20260607-8d20ea22-131906-d1rv). Bump directory_version."
+        fi
+      fi
+    fi
+  done
+else
+  log "  skipped: no agent-index-resource-listings git clone at $RL (set RESOURCE_LISTINGS_PATH to enable)"
+fi
+log "  errors: $(( ${#ERRORS[@]} - e10 ))"
+
+# ── Check 11: file-integrity sentinel (AIFS:FILE-END) (added in v1.6.0) ──────
+# standards.md § "File-integrity sentinel": a stamped file's last non-whitespace
+# content must be its per-format sentinel encoding. Missing sentinel on a stampable
+# file = ERROR when collection.json declares "file_integrity": "sentinel-v1",
+# WARNING otherwise (adoption nudge). Deterministic replacement for Check 6's
+# heuristic on stamped files. JSONL/append-mode and binary files excluded.
+log "Check 11: file-integrity sentinel (AIFS:FILE-END)"
+e11=${#ERRORS[@]}; w11=${#WARNINGS[@]}
+FI_MODE=$(grep -oE '"file_integrity"[[:space:]]*:[[:space:]]*"sentinel-v1"' "$COLL/collection.json" 2>/dev/null || true)
+UNSTAMPED_COUNT=0
+sentinel_fail() {
+    local rel="$1"
+    if [[ -n "$FI_MODE" ]]; then
+        err "  $rel: missing AIFS:FILE-END sentinel (collection declares sentinel-v1) — file may be tail-truncated"
+    else
+        UNSTAMPED_COUNT=$(( UNSTAMPED_COUNT + 1 ))
+    fi
+}
+while IFS= read -r -d '' f; do
+    rel=$(realpath --relative-to="$COLL" "$f")
+    tailtxt=$(tail -c 300 "$f" | sed 's/[[:space:]]*$//')
+    case "$f" in
+        *.md)
+            [[ "$tailtxt" == *'<!-- AIFS:FILE-END -->' ]] || sentinel_fail "$rel" ;;
+        *.json)
+            grep -q '"_file_end"[[:space:]]*:[[:space:]]*"AIFS:FILE-END"' "$f" || sentinel_fail "$rel" ;;
+        *.sh|*.py)
+            [[ "$tailtxt" == *'# AIFS:FILE-END' ]] || sentinel_fail "$rel" ;;
+        *.js)
+            [[ "$tailtxt" == *'// AIFS:FILE-END' ]] || sentinel_fail "$rel" ;;
+    esac
+done < <(find "$COLL" \( -name '*.md' -o -name '*.json' -o -name '*.sh' -o -name '*.py' -o -name '*.js' \) \
+    -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -name '*.jsonl' -print0)
+if [[ -z "$FI_MODE" ]] && (( UNSTAMPED_COUNT > 0 )); then
+    warn "  $UNSTAMPED_COUNT file(s) without AIFS:FILE-END sentinel — collection has not adopted sentinel-v1 (declare \"file_integrity\": \"sentinel-v1\" in collection.json and stamp files; see standards.md § File-integrity sentinel)"
+fi
+log "  errors: $(( ${#ERRORS[@]} - e11 )), warnings: $(( ${#WARNINGS[@]} - w11 ))"
+
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

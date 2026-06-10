@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.5.0
+version: 1.6.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -204,6 +204,7 @@ The `agent-index-resource-listings` repo holds three directory files that broadc
 - [ ] **Filesystem adapters:** if the collection has an `adapter.json` at root, check that the entry in `filesystem-adapter-directory.json` matches both `current_version` and (where applicable) `contract_version`. ERROR on mismatch.
 - [ ] **Infrastructure (core, marketplace):** if the collection name matches an entry in `infrastructure-directory.json` (`agent-index-core`, `agent-index-marketplace`), check that the entry's `current_version` matches `collection.json` `version`. ERROR on mismatch — without this update, admins can't discover that core/marketplace has a new release.
 - [ ] If the collection isn't represented in any directory: NOTE only (org-internal collections aren't required to publish, but a newly-published collection that should be discoverable but isn't listed will fall through this check; the cross-package coordination reminder picks it up).
+- [ ] **Top-level `directory_version` must move when content changes.** Each directory file carries a top-level `directory_version` that `check-updates`/`refresh-marketplace-cache` compare to decide "is there anything new." If the entry's `current_version` (or any listing content) changed in this release but `directory_version` is unchanged from the last published value, ERROR: "marketplace-directory content changed but directory_version was not bumped — staleness checks will not see this release (bug 20260607-8d20ea22-131906-d1rv)." Determine "changed" by `git diff` against the prior commit of the directory file when a git clone is reachable; otherwise compare the entry's `current_version` against the directory and warn if they moved while `directory_version` did not. Bumping `last_updated` alone is NOT sufficient.
 
 The check works by reading the directory files via a relative path (`../agent-index-resource-listings/`) when run from a sibling clone of the resource-listings repo, or via a configurable `resource_listings_path` parameter when not. If neither is reachable, surface a NOTE: "Could not locate agent-index-resource-listings; skipped broadcast freshness check. Verify manually."
 
@@ -335,6 +336,12 @@ This check applies only when the collection being preflighted is `agent-index-co
 **Authoring note remnants:**
 - [ ] No lines beginning with `# NOTE:` remain in any file (error — these must be removed before publishing)
 
+**File-integrity sentinel (added in preflight v1.6.0 — standards.md § "File-integrity sentinel"):**
+- [ ] If `collection.json` declares `"file_integrity": "sentinel-v1"`: every stampable file (`*.md`, `*.json`, `*.sh`, `*.py`, `*.js`; JSONL and binaries excluded) ends with its per-format `AIFS:FILE-END` encoding — Markdown: final line `<!-- AIFS:FILE-END -->`; JSON: top-level `"_file_end": "AIFS:FILE-END"`; shell/Python: `# AIFS:FILE-END`; JS: `// AIFS:FILE-END`. Missing sentinel is an **ERROR**: the file is presumed tail-truncated. Trailing whitespace after the marker is fine.
+- [ ] If the collection does NOT declare sentinel-v1: emit a single summary WARNING with the unstamped file count, recommending adoption. Do not list per-file.
+- [ ] This is the deterministic replacement for the mid-word heuristic on stamped files; the heuristic (CLI Check 6) remains for unstamped legacy files only.
+- [ ] Implemented in `lib/preflight-cli.sh` as Check 11.
+
 **Cross-package coordination reminder (added in preflight v1.2):**
 
 If this collection's release introduces new behavior that other collections — particularly the developer collection — should know about, surface a NOTE-level reminder. Heuristics:
@@ -453,29 +460,4 @@ Present the report to the developer. If there are errors, offer to fix them (inv
 
 ### Behavior
 
-Be thorough and systematic. Check every file, every field, every cross-reference. The value of preflight is that it catches things humans miss. Do not skip checks for files that "look fine" — run every check against every applicable file.
-
-When reporting issues, be specific about location and fix. Don't say "frontmatter is incomplete" — say "preflight.md is missing the `produces_artifacts` field in frontmatter. Add `produces_artifacts: false` (or `true` if this task produces files)."
-
-When the developer asks to fix issues, apply the minimum change needed. Don't reorganize files or rewrite content that passed checks.
-
-### Output Standards
-
-The report is delivered in chat, not written to a file. Use markdown formatting for readability. Group findings by severity, then by file within each severity level.
-
-### Constraints
-
-- This task is read-only. It examines files but never modifies them.
-- Never skip a check category unless the developer explicitly requests a scoped run.
-- Never mark a collection as passing if any errors were found, regardless of how minor they seem.
-- Never invent new check categories beyond what's defined in the workflow steps.
-
-### Edge Cases
-
-If the collection directory is empty except for collection.json, report all missing files but don't produce an overwhelming list of frontmatter errors for files that don't exist — the missing file errors are sufficient.
-
-If collection.json itself is malformed or missing required fields, report those errors first and note that many downstream checks cannot run without a valid collection.json.
-
-If the developer asks to check a directory that isn't an agent-index collection (no collection.json), say so clearly and suggest they use the develop skill to create one.
-
-If the collection uses capability providers, check provider/consumer declarations but note that full binding validation requires an org context (registered providers) that isn't available at preflight time.
+Be thorough and systematic. Check every file, every field, every cross-reference. The value of preflight is that it catches things humans miss. Do not skip checks for

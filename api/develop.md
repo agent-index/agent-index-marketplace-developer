@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.3.0
+version: 1.4.0
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
@@ -157,6 +157,7 @@ Generate every required file for the collection:
    - `/apps/{script-name}.py` (or `.js`) — Generated scripts for each mechanical workflow step, following authoring guide script conventions (shebang, dependency check, `--dry-run`, structured JSON output, exit codes).
    - `/apps/requirements.txt` (Python) or `/apps/package.json` (Node) — Pinned dependencies.
    - Task workflow steps that call these scripts are written with explicit script invocations, argument mappings, output parsing instructions, and error handling based on exit codes.
+11. **File-integrity sentinel (added in developer 1.6.0 — standards.md § "File-integrity sentinel"):** `collection.json` declares `"file_integrity": "sentinel-v1"`, and every generated file is stamped with its per-format `AIFS:FILE-END` encoding as its last non-whitespace content — Markdown: `<!-- AIFS:FILE-END -->` final line; JSON (including collection.json and every manifest): `"_file_end": "AIFS:FILE-END"` as the last key; shell/Python scripts: `# AIFS:FILE-END`; JS: `// AIFS:FILE-END`. JSONL and binary assets are never stamped. Preflight Check 11 enforces this for declaring collections.
 
 Write all files to the configured `default_output_path` or to a path the developer specifies.
 
@@ -195,6 +196,7 @@ When preparing a version release:
 3a. **Restamp every `api/*-manifest.json`'s `collection_version` to the new version** — and bump each touched capability's `version` (manifest + frontmatter together). Five shipped collections failed preflight Check 2 in the 2026-06 sweep because PATCH releases skipped this step.
 4. Update `CHANGELOG.md` with a new entry at the top. Use the standard format: `## [X.Y.Z] — YYYY-MM-DD` with changes listed under appropriate headings (Added, Changed, Deprecated, Removed, Fixed).
 5. If MAJOR bump: remind the developer they need an upgrade script in `/upgrade/` and must set `eol_date` on the prior major version.
+5a. **Re-stamp sentinels on every file touched by the bump** (collections declaring `file_integrity: sentinel-v1`): the sentinel must remain the last non-whitespace content after edits. If the collection hasn't adopted sentinel-v1, offer adoption as part of the bump (declare + stamp all files in the same release).
 6. Run preflight if auto_preflight is enabled.
 
 ### File Format Compliance
@@ -223,7 +225,7 @@ When generating any file, apply these rules from the file format standards:
 - `filesystem-adapter-directory.json` — for filesystem adapters (gdrive, onedrive, s3). Update `current_version` and, where the collection has an adapter contract, `contract_version`.
 - `infrastructure-directory.json` — for `agent-index-core` and `agent-index-marketplace`. Required for every infrastructure release.
 
-The pattern is: bump `current_version` in `collection.json` (or `adapter.json` for adapters), update the matching entry in the relevant resource-listing directory, and bump `last_updated`. The release is incomplete without all three. Preflight v1.2+ checks this consistency and errors if the directory is stale relative to the collection.
+The pattern is: bump `current_version` in `collection.json` (or `adapter.json` for adapters), update the matching entry in the relevant resource-listing directory, bump that directory file's top-level **`directory_version`**, and bump `last_updated`. The release is incomplete without all four. **The `directory_version` bump is mandatory and easy to forget:** `check-updates` and `refresh-marketplace-cache` compare `directory_version` to decide whether anything is new — if you change an entry but leave `directory_version` unchanged, members never see the release even on a clean fetch (this silently hid two shipped batches; bug 20260607-8d20ea22-131906-d1rv). Bumping `last_updated` alone does NOT trigger detection. Preflight v1.2+ checks current-version consistency and (v1.5.1+) errors when listing content changed without a `directory_version` bump.
 
 **Access-model design (core 3.9+):** When the collection touches shared resources, the developer must choose one of the three proven access patterns *before* scaffolding. Surface this as an explicit design decision (see the 2026-06 cross-collection audit record at `/shared/projects/core-improvements/artifacts/audit-close.md` for the full rationale). The decision rule:
 
@@ -245,21 +247,4 @@ Whichever pattern applies, hold these invariants:
 ### Constraints
 
 - Never modify files outside the collection directory being worked on.
-- Never modify agent-index-core files, standards.md, or the authoring guide.
-- Never invent new frontmatter fields not in the file format standards.
-- Never omit required frontmatter fields — use `null` rather than omitting.
-- Never generate files with authoring notes (`# NOTE:`) — those are for the templates only.
-- Always confirm the proposed API surface with the developer before generating files.
-- Always use today's date for new CHANGELOG entries and collection metadata.
-
-### Edge Cases
-
-If the developer asks to build a collection in the `infrastructure` category, explain that this category is reserved for agent-index-core and agent-index-marketplace. Suggest `developer-tools` or another appropriate category.
-
-If the developer asks to build a collection whose name starts with `agent-index-`, explain that this prefix is reserved for official agent-index collections. Suggest an alternative name.
-
-If the developer describes something that's better served by an existing collection, mention that collection and confirm they still want to build a new one.
-
-If the developer wants to add capability provider declarations, read `capability-provider-spec.md` for the full specification and walk them through provider and consumer declarations, including the operation mapping and binding setup.
-
-If the collection being evolved has inconsistencies (e.g., api array doesn't match actual files), flag them before making changes. Offer to fix them as part of the current operation.
+- Never modify agent-index-core files, standards.md

@@ -1,7 +1,7 @@
 {
   "name": "developer",
   "display_name": "Developer",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Unified development experience for building, evolving, and shipping agent-index collections \u2014 from first idea through marketplace submission. v1.5.0: access-model currency \u2014 develop teaches the three access patterns (open-commons / owned-content / two-tier hybrid) with the verified-outcome grant gate, pointer conventions, org sharing vocabulary, collaborative-acls.json scaffolding and id:-anchor guidance; preflight gains Step 7.5 Access-Model Consistency (errors on shared writes without ACL provisioning and on retired constructs); optimize Step 7 example modernized to the pointer-index model. Earlier: see CHANGELOG.",
   "author": "agent-index",
   "license": "open",

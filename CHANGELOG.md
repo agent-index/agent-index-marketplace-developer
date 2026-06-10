@@ -1,5 +1,21 @@
 # Developer Collection — Changelog
 
+## [1.6.0] — 2026-06-09 — Platform Reliability: file-integrity sentinel authoring + enforcement
+
+Release record: core-improvements `releases/platform-reliability/`. Implements the developer-collection half of the sentinel standard (standards.md § "File-integrity sentinel"); partially addresses `20260608-8d20ea22-003039-trunc` (prevention).
+
+### Added
+- **preflight 1.6.0**: new CLI **Check 11** — file-integrity sentinel. Collections declaring `"file_integrity": "sentinel-v1"`: missing `AIFS:FILE-END` on a stampable file is an ERROR (presumed tail truncation). Non-declaring collections get a single summary WARNING (adoption nudge). Check 6's mid-word heuristic remains for unstamped legacy files only. Spec section added under Step 7 Content Quality Checks.
+- **develop 1.4.0**: New Collection flow Phase 5 item 11 — scaffolded collections declare sentinel-v1 and every generated file is stamped from birth. Version Bump flow step 5a — re-stamp sentinels on touched files; offer adoption to non-declaring collections.
+
+## [1.5.1] — 2026-06-07 — directory_version bump enforcement
+
+### Fixed
+
+- **`preflight` Step 4 (Resource-listings broadcast)** now ERRORs when listing content changed but the directory file's top-level `directory_version` did not. Closes the gap that silently hid two shipped batches (developer 1.5.0 docs-currency + the brand-book program) from `check-updates`/`refresh-marketplace-cache` — bug 20260607-8d20ea22-131906-d1rv.
+- **`develop` release guidance** now lists the `directory_version` bump as a mandatory, easily-forgotten fourth step of the resource-listings broadcast (bumping `last_updated` alone is insufficient).
+- **`lib/preflight-cli.sh` Check 10** — mechanical guard: when a sibling `agent-index-resource-listings` clone is reachable, errors if the entry's `current_version` moved (vs git HEAD) while `directory_version` did not.
+
 ## [1.5.0] — 2026-06-06 — access-model currency (companion to the 2026-06 cross-collection audit)
 
 ### Changed
