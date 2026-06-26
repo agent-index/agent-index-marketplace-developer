@@ -1,5 +1,18 @@
 # Developer Collection — Changelog
 
+## [1.7.0] — 2026-06-26 — Ship-side codification: the release process becomes a tool
+
+The *authoring* side of releasing was well-codified (lifecycle, version-bump mechanics, preflight, listings broadcast); the *ship* side lived only as tribal knowledge in hand-copied `push-*.sh` scripts. This release moves the push-script pattern, the tagging strategy, and the backend-distribution publish into the developer collection so they become the way everyone ships.
+
+### Added
+- **`release` 1.0.0 (new task)** — generates a host-native, preflight-gated release push script: a version gate (assert each repo's declared version == target), mandatory `preflight-cli` (errors abort), manifest restamp, **code-repos-first / `agent-index-resource-listings`-last** push order, and per-repo commit→push→**tag `v<version>`** (never moving a published tag — the `clone-script-generator` pins to those tags), plus the `/shared/dist/` publish handoff. The ship-side counterpart to core's `clone-script-generator`; like it, the task only *generates* — the agent never pushes (host credentials + clean-tree + FCI-1 safety boundary).
+- **`release-checklist.md` (new reference, collection root)** — the single ordered gate list (pre-push → push+tag → backend publish → test-the-release) that `release` generates against. Resolves the long-dangling "the org's release checklist" reference in the `develop` lifecycle.
+
+### Changed
+- **develop 1.5.0** — lifecycle Release stage (step 8) now names tagging + `/shared/dist/` publish and routes to `@ai:release`; Version Bump flow adds step 7 ("a bump is not shipped until pushed AND tagged"); the lifecycle's checklist reference now points at the real `release-checklist.md`.
+- **preflight 1.7.0** — new release-readiness NOTE (Step 7): a clean preflight is not "released"; reminds the developer that tagging + backend manifest are post-push gates preflight can't see, and routes to `@ai:release`. NOTE only, never a gate — preflight's job ends at the push boundary.
+- Companion: `agent-index-core` standards.md gains a "Release procedure (admin-side)" section (push ordering, tag convention + never-move-a-published-tag, preflight-gate, agent-never-pushes, then backend publish).
+
 ## [1.6.1] — 2026-06-10 — repair: tail truncations introduced in 1.6.0
 
 The 1.6.0 release commits contained tail-truncated capability specs — a mount-mediated read-modify-write during version restamping wrote stale truncated views back to disk (FCI-1 class; see bug 20260608-8d20ea22-003039-trunc and release record platform-reliability/build-record.md). 1.6.1 splices the complete pre-release tails back under the 1.6.0 content edits, verified byte-exact against the pre-release endings, and stamps the repaired files with AIFS:FILE-END sentinels. No behavioral changes beyond 1.6.0.

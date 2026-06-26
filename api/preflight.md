@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.6.1
+version: 1.7.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -347,6 +347,12 @@ This check applies only when the collection being preflighted is `agent-index-co
 If this collection's release introduces new behavior that other collections — particularly the developer collection — should know about, surface a NOTE-level reminder. Heuristics:
 - [ ] If `CHANGELOG.md`'s newest entry mentions any of: "adapter contract", "new ops", "new operations", "new task" (admin or otherwise), "OAuth scope", "permission", "schema change" — emit a NOTE: "This release introduces behavior that the developer collection (`develop` skill, `developer-guide` skill, `preflight` task) may need to know about. Consider whether the developer collection's docs reference this collection's new patterns and bump it accordingly."
 - [ ] This is intentionally a NOTE, not a warning — it's reminding the developer to think about cross-package coordination, not gating release on it.
+
+**Release-readiness reminder (added in preflight v1.7.0):**
+
+Preflight runs *before* the push, so it cannot verify that tagging and backend publication happened — but it can remind the developer that they are part of shipping, so a clean preflight isn't mistaken for "released."
+- [ ] If `collection.json` `version` has a matching newest CHANGELOG entry (i.e. this looks like a release candidate, not mid-development), emit a NOTE: "Preflight is clean. Shipping is not done until the release is pushed AND tagged `v{version}`, and (for backend-distribution orgs) `/shared/dist/manifest.json` reflects it. Generate the push+tag script with `@ai:release` rather than hand-writing one, and follow the release-checklist. Preflight cannot see tags or the backend manifest — those are post-push gates."
+- [ ] NOTE only — never a gate. Preflight's job ends at the push boundary.
 
 **On success:** Proceed to Step 7.5.
 **On failure:** Record each finding at the appropriate severity level.

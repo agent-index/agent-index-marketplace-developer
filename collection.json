@@ -1,8 +1,8 @@
 {
   "name": "developer",
   "display_name": "Developer",
-  "version": "1.6.1",
-  "description": "Unified development experience for building, evolving, and shipping agent-index collections \u2014 from first idea through marketplace submission. v1.5.0: access-model currency \u2014 develop teaches the three access patterns (open-commons / owned-content / two-tier hybrid) with the verified-outcome grant gate, pointer conventions, org sharing vocabulary, collaborative-acls.json scaffolding and id:-anchor guidance; preflight gains Step 7.5 Access-Model Consistency (errors on shared writes without ACL provisioning and on retired constructs); optimize Step 7 example modernized to the pointer-index model. Earlier: see CHANGELOG.",
+  "version": "1.7.0",
+  "description": "Unified development experience for building, evolving, and shipping agent-index collections \u2014 from first idea through marketplace submission. v1.7.0: ship-side codification \u2014 new `release` task generates a host-native, preflight-gated, version-gated release push script (code-repos-first/listings-last ordering, per-repo commit\u2192push\u2192tag v<version>, never-move-a-published-tag, backend-distribution publish handoff) \u2014 the ship-side counterpart to core's clone-script-generator, turning the hand-copied push-*.sh tribal knowledge into a generated, repeatable step; develop's lifecycle Release stage now names tagging + /shared/dist/ publish and routes to @ai:release; a standalone release-checklist reference resolves the lifecycle's dangling reference; preflight adds a release-readiness note. v1.5.0: access-model currency \u2014 develop teaches the three access patterns (open-commons / owned-content / two-tier hybrid) with the verified-outcome grant gate, pointer conventions, org sharing vocabulary, collaborative-acls.json scaffolding and id:-anchor guidance; preflight gains Step 7.5 Access-Model Consistency (errors on shared writes without ACL provisioning and on retired constructs); optimize Step 7 example modernized to the pointer-index model. Earlier: see CHANGELOG.",
   "author": "agent-index",
   "license": "open",
   "category": "developer-tools",
@@ -100,6 +100,26 @@
           "phrase": "collection optimization",
           "capability": "optimize",
           "description": "Run optimization analysis on a collection"
+        }
+      ]
+    },
+    {
+      "name": "release",
+      "triggers": [
+        {
+          "phrase": "generate a release script",
+          "capability": "release",
+          "description": "Generate the host-native push+tag script for a release"
+        },
+        {
+          "phrase": "ship this release",
+          "capability": "release",
+          "description": "Produce the preflight-gated release push script"
+        },
+        {
+          "phrase": "push and tag a release",
+          "capability": "release",
+          "description": "Generate the code-first/listings-last push+tag script"
         }
       ]
     }

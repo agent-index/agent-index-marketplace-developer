@@ -1,26 +1,29 @@
 {
-  "name": "optimize",
+  "name": "release",
   "type": "task",
-  "display_name": "Optimize",
+  "display_name": "Release",
   "collection": "developer",
   "collection_version": "1.7.0",
-  "version": "1.2.0",
+  "version": "1.0.0",
   "eol_date": null,
   "eol_warning_days": 60,
   "stateful": false,
   "produces_artifacts": true,
   "produces_shared_artifacts": false,
-  "setup_template": "optimize-setup.md",
+  "setup_template": "release-setup.md",
   "dependency_status": "complete",
   "missing_dependencies": [],
   "parameter_provenance": {
-    "default_mode": "member-overridable",
-    "script_language": "org-mandated",
-    "include_gray_area": "member-overridable"
+    "tag_convention": "org-mandated",
+    "listings_repo_name": "org-mandated",
+    "default_publishes_dist": "member-overridable",
+    "preflight_gate": "org-mandated"
   },
   "dependencies": {
     "skills": [],
-    "tasks": []
+    "tasks": [
+      "preflight"
+    ]
   },
   "external_dependencies": [],
   "reads_from": null,

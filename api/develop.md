@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.4.1
+version: 1.5.0
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
@@ -64,7 +64,7 @@ Assess the developer's experience level from their language and adjust according
 
 ### Development Lifecycle
 
-All non-trivial development — new collections, major reworks, access-model changes — follows this sequence. Surface it to the developer at the start of any such effort and anchor the work to it. (This is the process that delivered the 2026-06 cross-collection audit; the supporting record conventions live in the org's release checklist.)
+All non-trivial development — new collections, major reworks, access-model changes — follows this sequence. Surface it to the developer at the start of any such effort and anchor the work to it. (This is the process that delivered the 2026-06 cross-collection audit; the supporting record conventions and the ordered ship-side gates live in the **release-checklist reference**, `release-checklist.md` at the developer collection root.)
 
 1. **Define outcomes and expectations in functional terms** — what members will be able to do, who can see what, what "done" looks like — not technical outcomes. Technical choices serve these; they don't lead.
 2. **Define and review the solution design** — the approach, the access pattern, the member experience. Reviewed and approved before any technical commitment.
@@ -73,7 +73,7 @@ All non-trivial development — new collections, major reworks, access-model cha
 5. **Dev** — build to the reviewed designs. Deviations go back through review, not silently into code.
 6. **Test** — execute the test plan, rehearsal environment first where one exists.
 7. **Iterate until bug-free** — findings are filed, fixed, and re-tested; the test plan is amended when reality teaches something new.
-8. **Release** — versioned, changelogged, listings broadcast, preflight-gated.
+8. **Release** — versioned, changelogged, listings broadcast, preflight-gated, **tagged, and (for backend-distribution orgs) published to `/shared/dist/`.** Generate the push script with the `release` task (`@ai:release`) rather than hand-writing one: it runs preflight as a hard gate, pushes code-repos-first / `agent-index-resource-listings`-last, and commits→pushes→tags each repo at `v<version>` (never moving a published tag — the `clone-script-generator` pins to those tags). After the push, publish `/shared/dist/` so members read the new release from the backend, not GitHub (standards.md § Distribution + § Release procedure). Follow the release-checklist reference for the full ordered gate list.
 9. **Test the release** — post-release validation in a real install as a real (non-admin) member; results recorded.
 
 Each stage produces a reviewable record (design doc, test plan, findings, release record, retro) preserved as a resilient record — the paper trail is part of the deliverable, not overhead. Skipping a stage is a decision the developer makes explicitly, not a default.
@@ -198,6 +198,7 @@ When preparing a version release:
 5. If MAJOR bump: remind the developer they need an upgrade script in `/upgrade/` and must set `eol_date` on the prior major version.
 5a. **Re-stamp sentinels on every file touched by the bump** (collections declaring `file_integrity: sentinel-v1`): the sentinel must remain the last non-whitespace content after edits. If the collection hasn't adopted sentinel-v1, offer adoption as part of the bump (declare + stamp all files in the same release).
 6. Run preflight if auto_preflight is enabled.
+7. **A version bump is not shipped until it is pushed AND tagged.** After preflight is clean, the release is pushed and each repo tagged `v<version>` — generate that script with the `release` task (`@ai:release`); see the Release stage of the lifecycle. Bumping the version in the file is not the release; the tag the `clone-script-generator` pins to is.
 
 ### File Format Compliance
 

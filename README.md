@@ -18,6 +18,8 @@ You describe what you want your collection to do — in plain language or with t
 
 **developer-tutorial** (skill) — Guided tour of collection development. Explains every concept from scratch for first-time authors. Covers collections, skills vs. tasks, file structure, setup interviews, versioning, preflight, and the full development lifecycle. Two modes: sequential walkthrough or jump to any topic.
 
+**release** (task) — Ship-side push-script generator. The counterpart to core's clone-script-generator: it interviews the release scope, runs preflight as a hard gate, and emits a host-native script (PowerShell/bash) that pushes the repos in dependency order (code first, resource-listings last), commits/pushes/tags each at `v<version>`, never moves a published tag, and prints the `/shared/dist/` publish handoff. The agent never pushes — the script runs natively where the credentials and a clean tree are.
+
 **optimize** (task) — Workflow token efficiency auditor. Reads a collection's task workflows, classifies each step as judgment (requires Claude's reasoning) or mechanical (deterministic, same logic every run), and estimates the token cost of mechanical steps. Produces an optimization report ranking extraction opportunities by savings. In apply mode, generates parameterized scripts and rewrites workflow steps to call them — so Claude spends tokens on reasoning, not re-deriving deterministic logic.
 
 ## Prerequisites
@@ -33,7 +35,7 @@ The collection supports the full development workflow:
 2. **Reference** — Use the guide to look up specific details as you work
 3. **Build** — Use the develop skill to create or evolve a collection
 4. **Check** — Use preflight to verify release readiness
-5. **Ship** — Bump version, update changelog, deploy or submit to marketplace
+5. **Ship** — Bump version and changelog, then use the release task to generate the preflight-gated push+tag script; run it natively, then publish `/shared/dist/` (backend distribution). The release-checklist reference enumerates the ordered gates.
 
 ## Version History
 
