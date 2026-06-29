@@ -1,5 +1,10 @@
 # Developer Collection — Changelog
 
+## [1.7.1] — 2026-06-29 — release-checklist: classify the adapter-test exit (C.1.3.3)
+
+### Added
+- **Lesson: `node --test` in an adapter dir false-alarms on the host.** Adapter test files import the framework via `file:../agent-index-filesystem`, which `npm install` doesn't reliably link on Windows/Git Bash → `ERR_MODULE_NOT_FOUND` before any assertion runs, so the runner exits non-zero and looks like "tests failed" when the code is fine. A release script's adapter-test step must **classify the exit**: module-resolution signature → advisory skip (bundle build + `exec_bundle_checksum` match is the real gate); genuine non-zero (assertion failures) → block. Stops the cry-wolf risk of "continuing anyway" past a real failure. (release-checklist.md Lessons.)
+
 ## [1.7.0] — 2026-06-26 — Ship-side codification: the release process becomes a tool
 
 The *authoring* side of releasing was well-codified (lifecycle, version-bump mechanics, preflight, listings broadcast); the *ship* side lived only as tribal knowledge in hand-copied `push-*.sh` scripts. This release moves the push-script pattern, the tagging strategy, and the backend-distribution publish into the developer collection so they become the way everyone ships.
