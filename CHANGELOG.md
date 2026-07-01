@@ -1,5 +1,11 @@
 # Developer Collection — Changelog
 
+## [1.8.0] — 2026-07-01 — release task generates the two-script (build-and-prep + push) flow
+
+### Changed
+- **`release` task 1.0.0 → 1.1.0 — generates BOTH release scripts, not just push.** Codifies the mature two-phase process validated in C.1.3.5: Step 3 now emits an idempotent **build-and-prep** script (P1 adapter `npm test` with module-resolution exit-classification → P2 native `npm run build` + `exec_bundle_checksum`/`bundle_built_at` stamp + `node --check` → P3 restamp every `api/*-manifest.json` `collection_version` → P4 restamp resource-listings `current_version`/`directory_version`/`last_updated` → P5 fail-closed version-consistency gate) AND the gated **push** script (G1 re-assert prep gates → G2 surgical changelog date stamp → G3 mandatory preflight → G4 per-repo commit→push→tag in code-first/listings-last order → G5 dist handoff).
+- **Version-consistency gate now asserts manifest alignment at the earliest (prep) phase.** Step 3A/P5 require every `api/*-manifest.json` `collection_version` to equal `collection.json` `version` — not just the top-level number. A gate that checked only `collection.json` let core 3.22.5 (C.1.3.5) ship all 20 manifests a version behind, caught only at the push-time preflight and requiring a hotfix + force-moved tag. `release-checklist.md` carries the matching lesson.
+
 ## [1.7.1] — 2026-06-29 — release-checklist: classify the adapter-test exit (C.1.3.3)
 
 ### Added

@@ -1,9 +1,9 @@
 ---
 name: release
 type: task
-version: 1.0.0
+version: 1.1.0
 collection: developer
-description: Generates a host-native, preflight-gated, version-gated release push script for one or more agent-index repos — code-repos-first/listings-last ordering, per-repo commit→push→tag (v<version>), and a backend-distribution publish handoff. The ship-side counterpart to core's clone-script-generator.
+description: Generates a matched pair of host-native release scripts — an idempotent build-and-prep script (adapter unit tests with module-resolution exit-classification, native bundle build + checksum stamp, manifest + resource-listings restamp, fail-closed version-consistency gate) and a gated push script (changelog date stamp, mandatory preflight, per-repo commit→push→tag v<version> in code-first/listings-last order, backend-distribution handoff). The ship-side counterpart to core's clone-script-generator.
 stateful: false
 produces_artifacts: true
 produces_shared_artifacts: false
@@ -36,7 +36,7 @@ Gathered in the interview (Step 1):
 
 ### Outputs
 
-A single host-native script written to `<install_root>/.agent-index/release-<headline-tag>.{ps1,sh}`, surfaced to the developer to run natively. No repos are pushed by this task. The task also prints the post-run handoff (the dist-publish sequence) when the release publishes `/shared/dist/`.
+Two host-native scripts written to `<install_root>/.agent-index/` — `prep-<headline-tag>.{ps1,sh}` (build & prep) and `push-<headline-tag>.{ps1,sh}` (gated push & tag) — surfaced to the developer to run natively, prep first. No repos are built, pushed, or published by this task itself. The push script prints the post-run handoff (the dist-publish sequence) when the release publishes `/shared/dist/`.
 
 ### Cadence & Triggers
 
@@ -76,27 +76,39 @@ Record this order; the generated script pushes in it.
 
 ---
 
-### Step 3: Generate the script
+### Step 3: Generate the scripts (build-and-prep, then push)
 
-Emit one self-contained host-native script (`.ps1` for windows, `.sh` for darwin/linux). It must implement, in this order:
+Emit **two** self-contained host-native scripts (`.ps1` for windows, `.sh` for darwin/linux), matching the mature two-phase process: an idempotent, re-runnable **build-and-prep** script that makes the tree release-ready, then a gated **push** script that commits/pushes/tags. Splitting them keeps everything reversible until the push — prep can be run repeatedly with zero consequence; only the push is irreversible. Neither script is run by the agent; the developer runs them natively.
 
-**A. Version gate (pre-flight, fail-closed).** For each repo, assert the declared version equals the intended target (`collection.json`/`adapter.json` `version`, listings `directory_version`). On any mismatch, print the repo + expected/actual and exit non-zero. This is the guard that stops a "I forgot to bump X" release.
+#### Script 1 — `prep-<headline-tag>.{ps1,sh}` (build & prep; makes NO git commits/pushes/tags and touches no `/shared/`; safe to re-run)
 
-**B. Subroutine/asset presence gate (when applicable).** If the release publishes `/shared/dist/`, assert the Release-C subroutines exist in the core tree (`templates/clone-script-generator.md`, `templates/backend-distribution.md`). If the release includes an adapter, assert `dist/<bundle>` exists and its sha256 matches `adapter.json` `exec_bundle_checksum` (computed on the **git-blob LF bytes** — Windows checkout converts LF→CRLF and breaks the SHA).
+**P1. Adapter unit tests (adapter repos).** Run `npm test` in each adapter repo. **Classify the exit:** if the output matches a module-resolution signature (`ERR_MODULE_NOT_FOUND` / `Cannot find package '@agent-index/filesystem'`), treat it as an **advisory skip** — the framework `file:` dep isn't linked on the host, the bundle checksum gate (P2) is the real verification — NOT a failure. Only a non-resolution non-zero exit (real assertion failures) aborts. (Crying-wolf hazard: a hard-fail here trains operators to blow past a real failure.)
 
-**C. Manifest restamp (idempotent).** For each collection repo, set every `api/*-manifest.json` `collection_version` to that repo's `collection.json` `version`. (Preflight Check 2 requires ALL manifests aligned, not just touched ones; five shipped collections failed this in the 2026-06 sweep.)
+**P2. Native bundle build (adapter repos).** Run `npm run build` — esbuild needs the host's native binary; the sandbox cannot bundle. This regenerates `dist/aifs-exec.bundle.js`, copies `dist/aifs-exec.sh`, and writes `exec_bundle_checksum` + `bundle_built_at` into `adapter.json`. Then assert the freshly-written checksum equals sha256 over the rebuilt bundle bytes, and `node --check` the bundle.
 
-**D. Mandatory preflight (hard gate).** For each collection repo, run `lib/preflight-cli.sh --collection <repo>` (path: the developer collection's CLI). **Abort the entire release on any error** — this is the `release-script-runs-preflight` contract, now generated rather than remembered. Offer `confirm "Continue anyway?"` ONLY for warnings, never for errors.
+**P3. Manifest restamp (collection repos, idempotent).** Set every `api/*-manifest.json` `collection_version` to that repo's `collection.json` `version` — ALL manifests, not just touched ones (preflight Check 2; core 3.22.5 shipped 20 manifests a version behind precisely because a hand-rolled prep skipped this).
 
-**E. Per-repo push, in the Step-2 order.** For each repo, a `push_one` routine that:
+**P4. Resource-listings stamp (idempotent).** For each entry this release changes, set `current_version` (and `contract_version` for adapters) in the matching directory file (`infrastructure-directory.json` / `filesystem-adapter-directory.json` / `marketplace-directory.json`), bump that file's top-level **`directory_version`**, and move `last_updated`. The `directory_version` bump is mandatory — staleness checks compare it; moving `last_updated` alone hides the release.
+
+**P5. Version-consistency gate (fail-closed).** Assert every version-bearing file agrees: each repo's `collection.json`/`adapter.json` `version` (or listings `directory_version`) equals its target, AND every `api/*-manifest.json` `collection_version` equals its `collection.json` `version`, AND each changed listings entry's `current_version` equals the code repo's version. Any mismatch prints repo + expected/actual and exits non-zero. **A gate that checks only `collection.json` is not a version gate** — that hole shipped core 3.22.5's manifests a version behind.
+
+#### Script 2 — `push-<headline-tag>.{ps1,sh}` (gated push & tag; the only irreversible phase)
+
+**G1. Re-assert the prep gates (cheap backstop).** Re-run P5's version-consistency gate and the adapter bundle checksum match. If prep wasn't run (checksum mismatch / manifests unaligned), abort and tell the operator to run prep first.
+
+**G2. Stamp changelog release dates.** Surgically replace the `<RELEASE_DATE>` placeholder with today's date on ONLY the specific version headers being shipped (leave unrelated placeholders — e.g. an older entry's — alone). This lands the date in the release commit instead of depending on memory.
+
+**G3. Mandatory preflight (hard gate).** For each collection repo, run `lib/preflight-cli.sh --collection <repo>` (the developer collection's CLI). **Abort on any ERROR** — the `release-script-runs-preflight` contract. Offer `confirm "Continue anyway?"` for WARNINGS only, never errors.
+
+**G4. Per-repo push, in the Step-2 dependency order** (adapter → core → marketplace → collection repos → **`agent-index-resource-listings` LAST**). A `push_one` routine per repo:
 1. Verifies the dir is a git repo with an `origin` remote (print the `git remote add` command and skip if not).
 2. Shows `git status --short` + staged diff; **confirms before commit**; commits with the supplied message.
 3. Compares local HEAD to `@{u}`; **confirms before push**; pushes the current branch.
-4. **Tagging:** if tag `v<version>` already exists at HEAD → leave it. If it exists pointing elsewhere → print a loud warning and do NOT move it (operator cuts a new tag by hand; we never force-move a published tag the clone-script-generator may already pin). Otherwise **confirm → `git tag -a v<version> -m "<msg>"` → push the tag.**
+4. **Tagging:** if tag `v<version>` already exists at HEAD → leave it. If it exists pointing elsewhere → print a loud warning and do NOT move it (operator cuts a new tag by hand; never force-move a published tag the clone-script-generator / `/shared/dist/manifest.json` may already pin). Otherwise **confirm → `git tag -a v<version> -m "<msg>"` → push the tag.**
 
-**F. Dist-publish handoff.** If the release publishes `/shared/dist/`, print the exact next steps: run `clone-script-generator` into a local clone pinned to the new tags → `create-org`/`apply-updates` diffs the clone against the backend and republishes `/shared/dist/` + `manifest.json` → verify the manifest's `org_release_tag` and per-artifact sha256. (This task stops at the script; it does not itself publish — same boundary as the clone generator.)
+**G5. Dist-publish handoff.** If the release publishes `/shared/dist/`, print the exact next steps: run `clone-script-generator` into a local clone pinned to the new tags → `create-org`/`apply-updates` diffs the clone against the backend and republishes `/shared/dist/` + `manifest.json` → verify the manifest's `org_release_tag` and per-artifact sha256. (This task stops at the script; it does not itself publish — same boundary as the clone generator.)
 
-The script prints a clear per-repo status line and exits non-zero on any abort, so both the developer and any wrapping automation can tell it failed.
+Both scripts print a per-step status line and exit non-zero on any abort, so the developer and any wrapping automation can tell they failed.
 
 **On success:** Proceed to Step 4.
 
@@ -104,9 +116,9 @@ The script prints a clear per-repo status line and exits non-zero on any abort, 
 
 ### Step 4: Deliver
 
-Write the script to `<install_root>/.agent-index/release-<headline-tag>.{ps1,sh}` and surface it to the developer with: the push order, which repos will be tagged at which `v<version>`, and (if applicable) the dist-publish handoff. Remind them it runs **natively** — the agent does not push.
+Write both scripts to `<install_root>/.agent-index/` (`prep-<headline-tag>` and `push-<headline-tag>`) and surface them to the developer with: **run prep first, then push**; the push order; which repos will be tagged at which `v<version>`; and (if applicable) the dist-publish handoff. Remind them the scripts run **natively** — the agent neither builds nor pushes (esbuild needs the host binary; agent-side git over a synced mount tears commits).
 
-Confirm the release-checklist (the developer collection's release-checklist reference) is satisfied before they run it.
+Confirm the release-checklist (the developer collection's release-checklist reference) is satisfied before they run them.
 
 **On success:** Task complete.
 
@@ -120,11 +132,12 @@ Operate as the ship-side partner. Never generate a release script without first 
 
 ### Output Standards
 
-The deliverable is one self-contained host-native script. It must be runnable as-is, print per-step status, use confirm prompts for commit/push/tag, and exit non-zero on any abort. PowerShell for windows; bash for darwin/linux. No agent-side push.
+The deliverable is a matched pair of self-contained host-native scripts (prep + push). They must be runnable as-is, print per-step status, use confirm prompts for commit/push/tag, and exit non-zero on any abort. Prep is idempotent and git-free; push is the only phase that commits/pushes/tags. PowerShell for windows; bash for darwin/linux. No agent-side build or push.
 
 ### Constraints
 
-- This task generates a script; it never pushes, tags, or publishes anything itself.
+- This task generates scripts; it never builds, pushes, tags, or publishes anything itself.
+- Always generate BOTH scripts (prep + push); the build/checksum/manifest/listings stamping belongs in prep, the commit/push/tag in push. Never fold the version-consistency + manifest-alignment gate into push-only — it must fail at the earliest (prep) phase.
 - Never pin a tag to a branch (`main`) — tags are `v<version>` only.
 - Never force-move or delete a published tag in the generated script.
 - Never place `agent-index-resource-listings` anywhere but last in the push order.
