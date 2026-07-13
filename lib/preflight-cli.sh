@@ -324,6 +324,96 @@ if [[ -z "$FI_MODE" ]] && (( UNSTAMPED_COUNT > 0 )); then
 fi
 log "  errors: $(( ${#ERRORS[@]} - e11 )), warnings: $(( ${#WARNINGS[@]} - w11 ))"
 
+# ── Check 12: catalog current_version has a matching released git tag ──────────
+# Recurrence guard for bug catalogphantomversion: a resource-listings directory
+# advertised a collection current_version (client-intelligence 2.2.0) that was
+# never released — no matching git tag existed (only v2.3.0) — so a tag-pinned
+# clone of the cataloged version failed. Verifies each catalog current_version
+# corresponds to a real released tag v{current_version} on the local sibling clone.
+#
+# Discrimination (keeps false positives low while catching the phantom):
+#   - clone absent locally                          → WARNING (can't verify offline)
+#   - clone present but has NO tags                  → WARNING (tags not fetched)
+#   - no v{version} tag, but version == the clone's OWN collection.json/adapter.json
+#     version                                        → OK (in-flight release; push
+#                                                        creates the tag — not a phantom)
+#   - no v{version} tag AND version != clone's version → ERROR (true phantom)
+#
+# Only runs when a resource-listings directory is reachable; inert otherwise.
+# Reads LOCAL clone tags only — no network fetch.
+log "Check 12: catalog current_version has a matching released git tag (phantom-version guard)"
+e12=${#ERRORS[@]}; w12=${#WARNINGS[@]}
+RLDIR=""
+if [[ -f "$COLL/marketplace-directory.json" ]]; then
+    RLDIR="$COLL"
+elif [[ -n "${RESOURCE_LISTINGS_PATH:-}" ]] && [[ -f "$RESOURCE_LISTINGS_PATH/marketplace-directory.json" ]]; then
+    RLDIR="$RESOURCE_LISTINGS_PATH"
+elif [[ -f "$COLL/../agent-index-resource-listings/marketplace-directory.json" ]]; then
+    RLDIR="$COLL/../agent-index-resource-listings"
+fi
+if [[ -z "$RLDIR" ]]; then
+    log "  skipped: no resource-listings directory files found (set RESOURCE_LISTINGS_PATH or place a sibling agent-index-resource-listings clone)"
+else
+    RLDIR="$(cd "$RLDIR" && pwd)"
+    CLONE_BASE="$(cd "$RLDIR/.." && pwd)"
+    for dj in marketplace-directory.json filesystem-adapter-directory.json infrastructure-directory.json; do
+        df="$RLDIR/$dj"
+        [[ -f "$df" ]] || continue
+        while IFS=$'\t' read -r ver clone; do
+            [[ -n "$ver" ]] && [[ -n "$clone" ]] || continue
+            cdir="$CLONE_BASE/$clone"
+            if [[ ! -d "$cdir/.git" ]]; then
+                warn "  $dj: $clone advertises current_version $ver — no local clone at $cdir; cannot verify released tag offline"
+                continue
+            fi
+            if [[ -z "$(git -C "$cdir" tag 2>/dev/null | grep -m1 .)" ]]; then
+                warn "  $dj: $clone advertises current_version $ver — local clone has no git tags; cannot verify released tag offline"
+                continue
+            fi
+            if [[ -z "$(git -C "$cdir" tag -l "v$ver" 2>/dev/null)" ]]; then
+                # In-flight-release exemption: prep stamps the catalog to the new
+                # version, but the tag is created by push — so during prep there is
+                # legitimately no tag yet. If the cataloged version equals the clone's
+                # OWN collection.json/adapter.json version, push will tag it; not a
+                # phantom. Only flag when it matches neither a tag nor the clone version.
+                own=""
+                for vf in collection.json adapter.json; do
+                    if [[ -f "$cdir/$vf" ]]; then
+                        own=$(grep -m1 '"version"' "$cdir/$vf" | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+                        [[ -n "$own" ]] && break
+                    fi
+                done
+                if [[ -n "$own" && "$own" == "$ver" ]]; then
+                    log "  $dj: $clone current_version $ver has no tag yet but matches the clone's working version — in-flight release (tag lands on push), OK"
+                else
+                    have=$(git -C "$cdir" tag 2>/dev/null | tr '\n' ' ')
+                    err "  $dj: $clone advertises current_version $ver but no released git tag v$ver exists and it does not match the clone's working version ($own) (phantom version — cataloged release was never tagged; bug catalogphantomversion). Tags present: $have"
+                fi
+            fi
+        done < <(awk '
+            /"current_version"[[:space:]]*:/ {
+                v=$0
+                sub(/.*"current_version"[[:space:]]*:[[:space:]]*"/, "", v)
+                sub(/".*/, "", v)
+                cv=v
+                next
+            }
+            /"repo_url"[[:space:]]*:/ {
+                if (cv=="") next
+                u=$0
+                sub(/.*"repo_url"[[:space:]]*:[[:space:]]*"/, "", u)
+                sub(/".*/, "", u)
+                sub(/\/+$/, "", u)
+                n=split(u, parts, "/")
+                print cv "\t" parts[n]
+                cv=""
+            }
+        ' "$df")
+    done
+fi
+log "  errors: $(( ${#ERRORS[@]} - e12 )), warnings: $(( ${#WARNINGS[@]} - w12 ))"
+
+
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

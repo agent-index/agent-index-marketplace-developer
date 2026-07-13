@@ -1,5 +1,10 @@
 # Developer Collection — Changelog
 
+## [1.9.0] — 2026-07-13 — Release C.1.4.4: preflight phantom-version guard (catalogphantomversion)
+
+### Added
+- **`preflight-cli.sh` — Check 12: catalog current_version has a matching released git tag.** For each resource-listings catalog entry (marketplace / adapter / infrastructure directories), verifies a `v{current_version}` tag exists on the corresponding local sibling clone. ERROR when a clone has tags but not the cataloged one (a phantom version — cataloged release was never tagged); WARNING when the clone is absent locally (can't verify offline). Reads local clone tags only (no web). Surfaced the client-intelligence 2.2.0 (real=v2.3.0) and strategy 1.1.4 (real=v1.2.0) phantoms; both catalog entries corrected in resource-listings.
+
 ## [1.8.0] — 2026-07-01 — release task generates the two-script (build-and-prep + push) flow
 
 ### Changed
