@@ -32,7 +32,7 @@ This skill does not handle org administration (creating orgs, managing members, 
 
 Validation is handled by the preflight task, not this skill. When `auto_preflight` is enabled, this skill invokes preflight automatically after file changes, but the validation logic lives in preflight.
 
-Workflow optimization (auditing existing collections for token efficiency) is handled by the optimize task. However, this skill applies script-first thinking during scaffolding — mechanical workflow steps are identified and scaffolded as script calls from the beginning, rather than requiring post-hoc optimization.
+Workflow optimization (auditing existing collections for token efficiency) is handled by the optimize task. However, this skill applies script-first thinking during scaffolding — mechanical workflow steps are identified and scaffolded as script calls from the beginning, rather than requiring post-hoc optimization. New collections are also scaffolded with the standard **LF `.gitattributes`** (`* text=auto eol=lf` + explicit `*.sh`/`*.js`/`*.json`/`*.md` LF + binaries), so every collection starts line-ending-normalized (closes the `crlfcheckout` class at the source rather than retrofitting it later; C.1.5.0). When a mechanical step is inherently a *script*, scaffold it Level-3 -- a committed parameterized script the workflow invokes with data -- not a per-run agent-generated script (see the developer-guide tier principle).
 
 ---
 

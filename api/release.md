@@ -76,47 +76,45 @@ Record this order; the generated script pushes in it.
 
 ---
 
-### Step 3: Generate the scripts (build-and-prep, then push)
+### Step 3: Emit the release-delta manifest (data) -- the committed scripts own the logic
 
-Emit **two** self-contained host-native scripts (`.ps1` for windows, `.sh` for darwin/linux), matching the mature two-phase process: an idempotent, re-runnable **build-and-prep** script that makes the tree release-ready, then a gated **push** script that commits/pushes/tags. Splitting them keeps everything reversible until the push — prep can be run repeatedly with zero consequence; only the push is irreversible. Neither script is run by the agent; the developer runs them natively.
+**Level-3 (C.1.5.0):** the prep/push logic is no longer transcribed into bespoke `prep-<tag>`/`push-<tag>` scripts each release. It lives in committed, version-controlled tooling at `agent-index-marketplace-developer/lib/release/` (`release-prep.{ps1,sh}`, `release-push.{ps1,sh}`). This task now emits ONLY a **release-delta manifest** (pure data -- which repos/versions changed) and surfaces the committed-script invocations. The agent still never builds or pushes.
 
-#### Script 1 — `prep-<headline-tag>.{ps1,sh}` (build & prep; makes NO git commits/pushes/tags and touches no `/shared/`; safe to re-run)
+Write the manifest to `<install_root>/.agent-index/release-<headline-tag>.json` (torn-write discipline: read it back before surfacing). Shape (see `lib/release/release-manifest.schema.json`):
 
-**P1. Adapter unit tests (adapter repos).** Run `npm test` in each adapter repo. **Classify the exit:** if the output matches a module-resolution signature (`ERR_MODULE_NOT_FOUND` / `Cannot find package '@agent-index/filesystem'`), treat it as an **advisory skip** — the framework `file:` dep isn't linked on the host, the bundle checksum gate (P2) is the real verification — NOT a failure. Only a non-resolution non-zero exit (real assertion failures) aborts. (Crying-wolf hazard: a hard-fail here trains operators to blow past a real failure.)
+```json
+{
+  "headline_tag": "c150",
+  "repos": [
+    { "name": "agent-index-core", "path": "../agent-index-core", "version": "3.28.0", "is_adapter": false, "in_listings": true }
+  ],
+  "push_order": ["agent-index-core", "agent-index-marketplace", "agent-index-marketplace-developer", "agent-index-marketplace-library", "agent-index-resource-listings"],
+  "dist_publish": true
+}
+```
 
-**P2. Native bundle build (adapter repos).** Run `npm run build` — esbuild needs the host's native binary; the sandbox cannot bundle. This regenerates `dist/aifs-exec.bundle.js`, copies `dist/aifs-exec.sh`, and writes `exec_bundle_checksum` + `bundle_built_at` into `adapter.json`. Then assert the freshly-written checksum equals sha256 over the rebuilt bundle bytes, and `node --check` the bundle.
+Only repos changed in the release go in `repos`/`push_order`; flag adapters with `is_adapter:true` (so the build+checksum step runs only for them -- no adapter steps when adapters are untouched); `push_order` MUST end with `agent-index-resource-listings`.
 
-**P3. Manifest restamp (collection repos, idempotent).** Set every `api/*-manifest.json` `collection_version` to that repo's `collection.json` `version` — ALL manifests, not just touched ones (preflight Check 2; core 3.22.5 shipped 20 manifests a version behind precisely because a hand-rolled prep skipped this).
+**The committed scripts encode every invariant the old generated pair did:**
+- `release-prep` -- preflight **hard gate** per repo (G3), adapter unit-test advisory-skip + **native bundle build + checksum + `node --check`** for `is_adapter` repos (P1/P2), `api/*-manifest.json` `collection_version` restamp (P3), and (via preflight Checks 10/13/14) the resource-listings stamp + cross-repo version-consistency gate + adapter build integrity (P4/P5). NO git writes; re-runnable.
+- `release-push` -- the **pre-push diff + integrity gate** (shows each repo's `git diff --stat`/full diff for review, and flags a lost `AIFS:FILE-END` sentinel vs HEAD, a missing trailing newline, or a non-HTTPS `origin` -- the guard that would have caught the create-org torn-write), CHANGELOG `<RELEASE_DATE>` stamp at push (G2), per-repo confirm-commit/push/**tag `v<version>`** in `push_order` with resource-listings LAST and never moving a published tag (G4), and the `/shared/dist` handoff note (G5).
 
-**P4. Resource-listings stamp (idempotent).** For each entry this release changes, set `current_version` (and `contract_version` for adapters) in the matching directory file (`infrastructure-directory.json` / `filesystem-adapter-directory.json` / `marketplace-directory.json`), bump that file's top-level **`directory_version`**, and move `last_updated`. The `directory_version` bump is mandatory — staleness checks compare it; moving `last_updated` alone hides the release.
-
-**P5. Version-consistency gate (fail-closed).** Assert every version-bearing file agrees: each repo's `collection.json`/`adapter.json` `version` (or listings `directory_version`) equals its target, AND every `api/*-manifest.json` `collection_version` equals its `collection.json` `version`, AND each changed listings entry's `current_version` equals the code repo's version. Any mismatch prints repo + expected/actual and exits non-zero. **A gate that checks only `collection.json` is not a version gate** — that hole shipped core 3.22.5's manifests a version behind.
-
-#### Script 2 — `push-<headline-tag>.{ps1,sh}` (gated push & tag; the only irreversible phase)
-
-**G1. Re-assert the prep gates (cheap backstop).** Re-run P5's version-consistency gate and the adapter bundle checksum match. If prep wasn't run (checksum mismatch / manifests unaligned), abort and tell the operator to run prep first.
-
-**G2. Stamp changelog release dates.** Surgically replace the `<RELEASE_DATE>` placeholder with today's date on ONLY the specific version headers being shipped (leave unrelated placeholders — e.g. an older entry's — alone). This lands the date in the release commit instead of depending on memory.
-
-**G3. Mandatory preflight (hard gate).** For each collection repo, run `lib/preflight-cli.sh --collection <repo>` (the developer collection's CLI). **Abort on any ERROR** — the `release-script-runs-preflight` contract. Offer `confirm "Continue anyway?"` for WARNINGS only, never errors.
-
-**G4. Per-repo push, in the Step-2 dependency order** (adapter → core → marketplace → collection repos → **`agent-index-resource-listings` LAST**). A `push_one` routine per repo:
-1. Verifies the dir is a git repo with an `origin` remote (print the `git remote add` command and skip if not).
-2. Shows `git status --short` + staged diff; **confirms before commit**; commits with the supplied message.
-3. Compares local HEAD to `@{u}`; **confirms before push**; pushes the current branch.
-4. **Tagging:** if tag `v<version>` already exists at HEAD → leave it. If it exists pointing elsewhere → print a loud warning and do NOT move it (operator cuts a new tag by hand; never force-move a published tag the clone-script-generator / `/shared/dist/manifest.json` may already pin). Otherwise **confirm → `git tag -a v<version> -m "<msg>"` → push the tag.**
-
-**G5. Dist-publish handoff.** If the release publishes `/shared/dist/`, print the exact next steps: run `clone-script-generator` into a local clone pinned to the new tags → `create-org`/`apply-updates` diffs the clone against the backend and republishes `/shared/dist/` + `manifest.json` → verify the manifest's `org_release_tag` and per-artifact sha256. (This task stops at the script; it does not itself publish — same boundary as the clone generator.)
-
-Both scripts print a per-step status line and exit non-zero on any abort, so the developer and any wrapping automation can tell they failed.
-
-**On success:** Proceed to Step 4.
-
----
+Preflight is the single source of truth for structural gates; `release-prep` calls it rather than re-implementing them inline.
 
 ### Step 4: Deliver
 
-Write both scripts to `<install_root>/.agent-index/` (`prep-<headline-tag>` and `push-<headline-tag>`) and surface them to the developer with: **run prep first, then push**; the push order; which repos will be tagged at which `v<version>`; and (if applicable) the dist-publish handoff. Remind them the scripts run **natively** — the agent neither builds nor pushes (esbuild needs the host binary; agent-side git over a synced mount tears commits).
+Surface the committed-script invocations to the developer (**run prep first, then push**), naming the manifest path, the push order, and which repos tag at which `v<version>`:
+
+```
+# Windows
+powershell -ExecutionPolicy Bypass -File lib\release\release-prep.ps1 -Manifest .agent-index\release-<headline-tag>.json
+powershell -ExecutionPolicy Bypass -File lib\release\release-push.ps1 -Manifest .agent-index\release-<headline-tag>.json
+# macOS/Linux
+bash lib/release/release-prep.sh .agent-index/release-<headline-tag>.json
+bash lib/release/release-push.sh .agent-index/release-<headline-tag>.json
+```
+
+Remind them the scripts run **natively** -- the agent neither builds nor pushes (esbuild needs the host binary; agent-side git over a synced mount tears commits).
 
 Confirm the release-checklist (the developer collection's release-checklist reference) is satisfied before they run them.
 

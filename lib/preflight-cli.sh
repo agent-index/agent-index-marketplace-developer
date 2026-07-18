@@ -414,6 +414,93 @@ fi
 log "  errors: $(( ${#ERRORS[@]} - e12 )), warnings: $(( ${#WARNINGS[@]} - w12 ))"
 
 
+# ── Check 13: this collection's catalog current_version matches collection.json (v1.7.0) ─
+# Cross-listing consistency (collreadgrant/ release hardening): the resource-listings
+# current_version for THIS collection must equal its source collection.json version, else
+# the catalog advertises a version the source has not shipped (listings not restamped).
+log "Check 13: catalog current_version matches collection.json version ($COLL_VERSION)"
+e13=${#ERRORS[@]}; w13=${#WARNINGS[@]}
+RLDIR13=""
+if [[ -f "$COLL/marketplace-directory.json" ]]; then RLDIR13="$COLL"
+elif [[ -n "${RESOURCE_LISTINGS_PATH:-}" ]] && [[ -f "$RESOURCE_LISTINGS_PATH/marketplace-directory.json" ]]; then RLDIR13="$RESOURCE_LISTINGS_PATH"
+elif [[ -f "$COLL/../agent-index-resource-listings/marketplace-directory.json" ]]; then RLDIR13="$COLL/../agent-index-resource-listings"
+fi
+if [[ -z "$RLDIR13" ]]; then
+    log "  skipped: no resource-listings directory reachable"
+else
+    RLDIR13="$(cd "$RLDIR13" && pwd)"
+    cat_ver=""
+    for dj in marketplace-directory.json filesystem-adapter-directory.json infrastructure-directory.json; do
+        [[ -f "$RLDIR13/$dj" ]] || continue
+        found=$(awk -v want="$COLL_NAME" '
+            /"current_version"[[:space:]]*:/ { v=$0; sub(/.*"current_version"[[:space:]]*:[[:space:]]*"/,"",v); sub(/".*/,"",v); cv=v; next }
+            /"repo_url"[[:space:]]*:/ { if(cv==""){next} u=$0; sub(/.*"repo_url"[[:space:]]*:[[:space:]]*"/,"",u); sub(/".*/,"",u); sub(/\/+$/,"",u); n=split(u,p,"/"); if(p[n]==want){print cv; exit} cv="" }
+        ' "$RLDIR13/$dj")
+        [[ -n "$found" ]] && { cat_ver="$found"; break; }
+    done
+    if [[ -z "$cat_ver" ]]; then
+        log "  skipped: $COLL_NAME not found in any reachable directory (org-internal collection?)"
+    elif [[ "$cat_ver" != "$COLL_VERSION" ]]; then
+        err "  catalog current_version ($cat_ver) for $COLL_NAME != collection.json version ($COLL_VERSION) -- listings not restamped to match source"
+    else
+        log "  OK: catalog current_version $cat_ver == collection.json $COLL_VERSION"
+    fi
+fi
+log "  errors: $(( ${#ERRORS[@]} - e13 )), warnings: $(( ${#WARNINGS[@]} - w13 ))"
+
+# ── Check 14: adapter build integrity (v1.7.0) ──────────────────────────────
+# When the repo is an adapter (adapter.json present): the stamped exec_bundle_checksum
+# must equal sha256 over the built bundle, and the bundle must pass node --check.
+log "Check 14: adapter build integrity (checksum + node --check)"
+e14=${#ERRORS[@]}; w14=${#WARNINGS[@]}
+if [[ -f "$COLL/adapter.json" ]]; then
+    bundle="$COLL/dist/aifs-exec.bundle.js"
+    if [[ ! -f "$bundle" ]]; then
+        err "  adapter.json present but dist/aifs-exec.bundle.js is missing (run the native build)"
+    else
+        stamped=$(grep -m1 '"exec_bundle_checksum"' "$COLL/adapter.json" | sed -E 's/.*"exec_bundle_checksum"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+        actual=$(sha256sum "$bundle" 2>/dev/null | awk '{print $1}')
+        if [[ -n "$stamped" && -n "$actual" && "$stamped" != "$actual" ]]; then
+            err "  exec_bundle_checksum ($stamped) != sha256 of built bundle ($actual) -- rebuild + restamp adapter.json"
+        fi
+        if command -v node >/dev/null 2>&1; then
+            node --check "$bundle" 2>/dev/null || err "  node --check failed on dist/aifs-exec.bundle.js (bundle is not parseable)"
+        else
+            warn "  node not available; skipped node --check on the bundle"
+        fi
+        [[ ${#ERRORS[@]} -eq $e14 ]] && log "  OK: bundle checksum + parse verified"
+    fi
+else
+    log "  skipped: not an adapter repo"
+fi
+log "  errors: $(( ${#ERRORS[@]} - e14 )), warnings: $(( ${#WARNINGS[@]} - w14 ))"
+
+# ── Check 15: text files end with a trailing newline (v1.7.0) ───────────────
+# Torn-write / truncation guard. A file that lost its tail (Cowork mount torn-write,
+# mounttornwrite) typically ends mid-line with no trailing newline -- exactly how
+# create-org.md was truncated during the C.1.5.0 build. Cheap net that would have caught it.
+log "Check 15: text files end with a trailing newline (truncation guard)"
+e15=${#ERRORS[@]}; w15=${#WARNINGS[@]}
+nl_bad=0
+while IFS= read -r f; do
+    [[ -s "$f" ]] || continue
+    if [[ -n "$(tail -c1 "$f")" ]]; then
+        warn "  $f does not end with a newline (possible truncation / torn-write)"
+        nl_bad=$((nl_bad+1))
+    fi
+    # mid-word truncation heuristic (NOT defeated by a trailing newline): last non-blank
+    # line ends in an alphanumeric char with no terminal punctuation/sentinel. This is the
+    # signature that a trailing-newline-only check masks (C.1.5.0: apply-updates/publish-updates).
+    lastline=$(grep -v '^[[:space:]]*$' "$f" | tail -n1)
+    if [[ "$lastline" =~ [A-Za-z0-9]$ ]] && ! grep -q 'AIFS:FILE-END' "$f"; then
+        warn "  $f last line ends mid-word with no terminator/sentinel (likely truncated): ...${lastline: -48}"
+        nl_bad=$((nl_bad+1))
+    fi
+done < <(find "$COLL" -type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' \) -not -path '*/node_modules/*' -not -path '*/.git/*')
+[[ $nl_bad -eq 0 ]] && log "  OK: all scanned text files end with a newline"
+log "  errors: $(( ${#ERRORS[@]} - e15 )), warnings: $(( ${#WARNINGS[@]} - w15 ))"
+
+
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"

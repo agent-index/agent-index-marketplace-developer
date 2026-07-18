@@ -23,6 +23,8 @@ This task reads a collection's workflows, classifies each step, estimates the to
 
 The result is a collection that spends tokens on reasoning — the work only Claude can do — and delegates everything else to deterministic scripts.
 
+**Also flag Level-2 patterns, not just inline (Level-1) ones (C.1.5.0 tier principle).** Beyond inline mechanical reasoning, watch for steps where the workflow has the agent **generate a script from a template or prose each run** and then run it -- that is Level 2: it still spends output tokens transcribing the script every run and can silently drop logic (bug `clonescripttagassumption`). Flag these as **Level-2 -> Level-3 promotion candidates**: replace the per-run generation with a committed, parameterized script the agent invokes with DATA only (a manifest / ops-array). See the developer-guide entry "Should this workflow step be a script, and how far do I take it?" for the three levels and the C.1.5.0 reference implementations (core `lib/clone/`, core `lib/permission-spec/`, developer `lib/release/`). The promotion rule: push Level 2 -> Level 3 whenever the script logic is stable across runs.
+
 ### Inputs
 
 A path to the collection directory to audit. If not specified, Claude asks which collection to optimize.

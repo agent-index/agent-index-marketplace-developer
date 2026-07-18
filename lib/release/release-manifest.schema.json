@@ -1,0 +1,25 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "release-delta manifest",
+  "type": "object",
+  "required": ["repos", "push_order"],
+  "properties": {
+    "headline_tag": { "type": "string" },
+    "repos": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name", "path", "version"],
+        "properties": {
+          "name": { "type": "string" },
+          "path": { "type": "string" },
+          "version": { "type": "string" },
+          "is_adapter": { "type": "boolean", "default": false },
+          "in_listings": { "type": "boolean", "default": false }
+        }
+      }
+    },
+    "push_order": { "type": "array", "items": { "type": "string" } },
+    "dist_publish": { "type": "boolean", "default": false }
+  }
+}
