@@ -500,6 +500,72 @@ done < <(find "$COLL" -type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o
 [[ $nl_bad -eq 0 ]] && log "  OK: all scanned text files end with a newline"
 log "  errors: $(( ${#ERRORS[@]} - e15 )), warnings: $(( ${#WARNINGS[@]} - w15 ))"
 
+# ── Check 16: spec-doc currency headers (added in preflight task v1.8.0) ────
+# standards.md § "Spec Document Currency": root-level spec/guide docs declare
+# Last Updated (+ optional Version); the header is the declared basis of currency,
+# not mtime and not git. Two-tier by design: docs that declare a header must keep
+# it accurate (WARNING when the CHANGELOG moved past it, ERROR on a forward
+# reference); docs that declare nothing get one summary adoption WARNING. Per-file
+# errors here would fail every collection in the org on first run.
+ver_gt() { # ver_gt A B -> true when semver A is greater than B
+    local IFS=.
+    local -a a=($1) b=($2)
+    local i x y
+    for i in 0 1 2; do
+        x=${a[i]:-0}; y=${b[i]:-0}
+        (( x > y )) && return 0
+        (( x < y )) && return 1
+    done
+    return 1
+}
+log "Check 16: spec-doc currency headers"
+e16=${#ERRORS[@]}; w16=${#WARNINGS[@]}
+CHLOG="$COLL/CHANGELOG.md"
+undeclared=()
+for f in "$COLL"/*.md; do
+    [[ -e "$f" ]] || continue
+    base=$(basename "$f")
+    case "$base" in
+        CHANGELOG.md) continue ;;
+        standards.md|ROADMAP.md|README.md|*-spec.md|*-guide.md) ;;
+        *) continue ;;
+    esac
+    hdr=$(head -15 "$f")
+    lu=$(printf '%s\n' "$hdr" | grep -m1 -iE '^\*{0,2}last updated:?\*{0,2}:?[[:space:]]*:?[[:space:]]*[0-9]{4}-' \
+         | grep -oE '[0-9]{4}-[0-9]{2}-[0-9]{2}' | head -1)
+    ver=$(printf '%s\n' "$hdr" | grep -m1 -iE '^\*{0,2}(current version|version):?\*{0,2}:?[[:space:]]*:?[[:space:]]*v?[0-9]+\.' \
+          | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+    if [[ -z "$lu" && -z "$ver" ]]; then
+        undeclared+=("$base")
+        continue
+    fi
+    # Last Updated vs newest CHANGELOG entry naming this file.
+    if [[ -n "$lu" && -f "$CHLOG" ]]; then
+        cl_date=$(awk -v want="$base" '
+            /^## \[/ { if (match($0, /[0-9]{4}-[0-9]{2}-[0-9]{2}/)) d = substr($0, RSTART, RLENGTH) }
+            index($0, want) > 0 && d != "" { print d; exit }' "$CHLOG")
+        if [[ -n "$cl_date" && "$cl_date" > "$lu" ]]; then
+            warn "  $base: Last Updated $lu but CHANGELOG changed it in a release dated $cl_date — header not bumped with the content"
+        fi
+    fi
+    # Declared Version vs the strict `file` (vX.Y.Z) form in the CHANGELOG.
+    if [[ -n "$ver" && -f "$CHLOG" ]]; then
+        cl_ver=$(grep -oE '`'"$base"'` \(v[0-9]+\.[0-9]+\.[0-9]+\)' "$CHLOG" \
+                 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)
+        if [[ -n "$cl_ver" && "$cl_ver" != "$ver" ]]; then
+            if ver_gt "$cl_ver" "$ver"; then
+                warn "  $base: header declares v$ver but CHANGELOG records v$cl_ver — document is behind its own release entry"
+            else
+                err "  $base: header declares v$ver, ahead of the newest CHANGELOG record v$cl_ver — forward reference (document bumped, release not)"
+            fi
+        fi
+    fi
+done
+if (( ${#undeclared[@]} > 0 )); then
+    warn "  ${#undeclared[@]} root-level spec/guide doc(s) declare no currency header: ${undeclared[*]} (see standards.md § Spec Document Currency)"
+fi
+log "  errors: $(( ${#ERRORS[@]} - e16 )), warnings: $(( ${#WARNINGS[@]} - w16 ))"
+
 
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""

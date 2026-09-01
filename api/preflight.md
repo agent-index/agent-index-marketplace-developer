@@ -342,6 +342,18 @@ This check applies only when the collection being preflighted is `agent-index-co
 - [ ] This is the deterministic replacement for the mid-word heuristic on stamped files; the heuristic (CLI Check 6) remains for unstamped legacy files only.
 - [ ] Implemented in `lib/preflight-cli.sh` as Check 11.
 
+**Spec document currency (added in preflight task v1.8.0 — standards.md § "Spec Document Currency"):**
+
+Scope is root-level `*.md` documents only: `standards.md`, `ROADMAP.md`, `README.md`, `*-spec.md`, `*-guide.md`. Exclude `api/`, `setup/`, `internal/`, `upgrade/` — frontmatter files are covered by Check 1.
+
+- [ ] For each in-scope document that declares a currency header (`Last Updated:` / `Last updated:`, bold or plain), verify the date parses as `YYYY-MM-DD`. An unparseable date is a WARNING.
+- [ ] For each in-scope document that declares `Last Updated`, find the newest `CHANGELOG.md` entry that names the file. If that entry's date is **newer** than the header date, WARNING — the document was changed in a release without a header bump. If the CHANGELOG names the file nowhere, skip silently: there is nothing to compare against, and the absence is not evidence of currency.
+- [ ] For each in-scope document that declares a `Version` (or `Current version`), scan `CHANGELOG.md` for a declaration of that document's own version in the strict form `` `{filename}` (v{MAJOR.MINOR.PATCH}) `` — backticked filename, immediately followed by a parenthesized `v`-prefixed semver. If the newest such declaration is **ahead** of the header, WARNING, naming both versions. Do not match looser forms; see the false-positive note below.
+- [ ] For `ROADMAP.md` specifically, the existing Step 4 check (`Current version:` vs `collection.json` `version`) remains the authoritative currency signal. Do not duplicate it here.
+- [ ] Documents in scope that declare **no** currency header at all: emit **one** summary WARNING with the count and the file list, recommending adoption. Never one warning per file, and never an ERROR — 17 documents across the org are in this state today, and per-file errors would fail every collection at once.
+- [ ] ERROR is reserved for one case: a document that declares a currency header, and whose declared `Version` is ahead of anything the CHANGELOG records for it. That is a forward reference — someone bumped the document and not the release.
+- [ ] Implemented in `lib/preflight-cli.sh` as Check 16.
+
 **Cross-package coordination reminder (added in preflight v1.2):**
 
 If this collection's release introduces new behavior that other collections — particularly the developer collection — should know about, surface a NOTE-level reminder. Heuristics:
