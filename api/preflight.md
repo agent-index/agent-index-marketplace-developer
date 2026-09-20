@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.7.0
+version: 1.8.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false

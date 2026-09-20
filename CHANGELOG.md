@@ -1,5 +1,24 @@
 ﻿# Developer Collection — Changelog
 
+## [1.11.0] — 2026-09-20 — Release C.1.5.3: spec-doc currency check + CHANGELOG re-encode
+
+Every item below was verified against the tree before it was written here, and the "Not in this release" section is deliberate. Companion to core 3.28.3.
+
+### Added
+- **preflight Check 16 — spec-document currency** (`preflight` task 1.7.0 → 1.8.0; `lib/preflight-cli.sh`). Scope is root-level `*.md` only — `standards.md`, `ROADMAP.md`, `README.md`, `*-spec.md`, `*-guide.md`; `api/`, `setup/`, `internal/` and `upgrade/` are already covered by Check 1. Two tiers by design. A document that declares a currency header must keep it accurate: WARNING when the newest CHANGELOG entry naming the file is dated after the header, WARNING when the CHANGELOG records a later version for it than the header declares. A document that declares nothing gets **one** summary adoption WARNING naming the files — never one per file, because seventeen documents across the org are in that state and per-file errors would fail every collection on first run. ERROR is reserved for a single case: a declared `Version` **ahead** of anything the CHANGELOG records for that file — a forward reference, meaning the document was bumped and the release was not. `ROADMAP.md` is excluded from the version half, which stays with Step 4. The version match requires the strict backticked `` `file` (vX.Y.Z) `` form, so looser prose cannot trigger it.
+  - Executed against deployed core rather than predicted: 6 warnings, 0 errors, and it re-derives the two missing-section findings from the files and the CHANGELOG with no knowledge of the audit that first found them.
+  - Coverage note: all four branches of the check are exercised by a throwaway fixture collection, including the swapped pair that distinguishes behind-spec (WARNING) from ahead-of-spec (ERROR). The version-ahead branch has no live example in this repo.
+
+### Fixed
+- **`CHANGELOG.md` — UTF-8-read-as-CP1252 mojibake repaired.** 137 mis-decoded sequences across five forms: 92 em dash, 41 right arrow, 2 left-right arrow, 1 en dash, 1 section sign. Every run round-trips cleanly, so the repair is mechanical rather than editorial — no run required a judgement about what was meant. Byte-order mark preserved, line count unchanged, no ASCII byte altered. Verified by re-applying the mis-decode to the corrected file and reproducing the original byte for byte.
+  - The count was first reported as 94. That figure came from grepping a single two-character signature, which misses the arrow family entirely — 43 sequences, a third of the corruption. The acceptance test used here instead asserts that the three lead characters this fault always begins with (U+00C2, U+00C3, U+00E2) do not occur anywhere in the file, which catches the whole class by construction rather than by enumeration. Stated as codepoints deliberately: writing the literal sequences into this file would make the CHANGELOG fail its own test.
+  - Same fault as core's, at 137 sequences against core's 640. This repo was outside the scope of the original finding, which was written against core only.
+
+### Not in this release
+- **Neither preflight gate can see character-encoding corruption.** `lib/preflight-cli.sh` and the `preflight` task both return clean on a CHANGELOG corrupted in every em dash — confirmed by running the CLI against this tree with and without the re-encode and getting byte-identical output. Unlike the CLI-is-a-subset problem, this is a gap in *both*, so it is a coverage hole rather than a subset difference. A Check 17 built on the lead-character assertion above is proposed and not implemented.
+- **The `@ai:preflight` / `preflight-cli.sh` gate-equivalence defect is not fixed.** `standards.md` names the two as interchangeable; the CLI is a strict subset and is the one the release push script gates on. On the same tree in the same hour the CLI returned 0 errors and the full task returned errors the CLI has no check for.
+- **Check 16 cites `standards.md` § "Spec Document Currency", which does not exist yet.** The rule is drafted and blocked on two open decisions in core. The check is self-describing and functions without it, but the citation is a forward reference until that section lands.
+
 ## [1.10.0] — 2026-07-18 — Release C.1.5.0: committed release tooling + preflight gate consolidation
 
 ### Added
