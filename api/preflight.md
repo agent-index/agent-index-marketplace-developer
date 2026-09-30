@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.8.0
+version: 1.9.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -196,7 +196,9 @@ Shell scripts shipped in a collection's runtime artifact directories must have L
 
 The check is shell-script-only. Other text files (markdown, JSON, etc.) tolerate either line ending without breaking — they're out of scope. Shell scripts that legitimately need CR characters are rare enough to warrant explicit `# allow-crlf` markers (out of scope for this version — flag as ERROR universally; the rare false-positive is acceptable cost for catching the much-more-common Windows-host accident).
 
-**Resource-listings broadcast freshness (added in preflight v1.2):**
+**Resource-listings broadcast freshness (added in preflight v1.2; all catalogs since v1.9.0):**
+
+**Scope — every reachable catalog, not only the public one (v1.9.0, closes `privatecatalogunchecked`).** Since core 3.31.0 an org can subscribe to several marketplace catalogs; a collection may be listed in a private catalog (e.g. `agent-index-private-marketplace`) instead of, or as well as, `agent-index-resource-listings`. Run every check below against each catalog you can reach: the public listings clone, any extra catalog directory the developer names, and every sibling clone holding a `marketplace-directory.json`. Match the collection under review to a catalog entry by the entry's `name` (the collection name) **or** its `repo_url` basename — never by repo basename alone, which is `agent-index-marketplace-{name}` for every marketplace collection and so never equals the collection name. Before v1.9.0 both mistakes were live: the CLI's Check 13 matched on repo basename only and looked only at the public listings, so it skipped every marketplace collection, and cx-studio 4.0.0 shipped with its private listing still advertising 3.0.4.
 
 The `agent-index-resource-listings` repo holds three directory files that broadcast version availability to `check-updates`, `edit-org`'s adapter-update flow, and `refresh-marketplace-cache`. Whenever a release ships, the relevant directory entry MUST be updated. Preflight checks this for the collection currently under review:
 
@@ -206,7 +208,7 @@ The `agent-index-resource-listings` repo holds three directory files that broadc
 - [ ] If the collection isn't represented in any directory: NOTE only (org-internal collections aren't required to publish, but a newly-published collection that should be discoverable but isn't listed will fall through this check; the cross-package coordination reminder picks it up).
 - [ ] **Top-level `directory_version` must move when content changes.** Each directory file carries a top-level `directory_version` that `check-updates`/`refresh-marketplace-cache` compare to decide "is there anything new." If the entry's `current_version` (or any listing content) changed in this release but `directory_version` is unchanged from the last published value, ERROR: "marketplace-directory content changed but directory_version was not bumped — staleness checks will not see this release (bug 20260607-8d20ea22-131906-d1rv)." Determine "changed" by `git diff` against the prior commit of the directory file when a git clone is reachable; otherwise compare the entry's `current_version` against the directory and warn if they moved while `directory_version` did not. Bumping `last_updated` alone is NOT sufficient.
 
-The check works by reading the directory files via a relative path (`../agent-index-resource-listings/`) when run from a sibling clone of the resource-listings repo, or via a configurable `resource_listings_path` parameter when not. If neither is reachable, surface a NOTE: "Could not locate agent-index-resource-listings; skipped broadcast freshness check. Verify manually."
+The check finds catalogs by relative path (`../agent-index-resource-listings/` and any other sibling holding a `marketplace-directory.json`) when run from sibling clones, via a configurable `resource_listings_path` parameter, or via extra catalog paths (the CLI's `CATALOG_PATHS`, colon-separated). If no catalog is reachable, surface a NOTE: "Could not locate any marketplace catalog; skipped broadcast freshness check. Verify manually." If catalogs are reachable but none lists this collection, NOTE which catalogs were searched. Implemented in `lib/preflight-cli.sh` as Checks 10 (directory_version bump), 12 (phantom-version guard) and 13 (current_version match), all iterating every discovered catalog.
 
 **`inherit: false` spec usage vs adapter contract version (added in preflight v1.4.0, closes section 4 of idea `helper-spec-needs-inherit-passthrough`):**
 

@@ -257,6 +257,36 @@ if [[ -f "$COLL/README.md" ]]; then
 fi
 log "  errors: $(( ${#ERRORS[@]} - e9 ))"
 
+# ── Catalog discovery (preflight task v1.9.0) ────────────────────────────────
+# Every marketplace catalog reachable locally, not just the public one. Before 1.9.0 Checks
+# 10/12/13 read only agent-index-resource-listings, so a collection listed in a private catalog
+# (core 3.31.0+ multi-marketplace; e.g. agent-index-private-marketplace) was never checked —
+# cx-studio 4.0.0 shipped with its private listing still advertising 3.0.4 (bug
+# privatecatalogunchecked). Sources, deduplicated, in this order:
+#   1. $COLL itself, if it holds a marketplace-directory.json (running against a catalog repo)
+#   2. RESOURCE_LISTINGS_PATH, else the sibling agent-index-resource-listings clone
+#   3. CATALOG_PATHS — colon-separated extra catalog directories
+#   4. every sibling of $COLL that holds a marketplace-directory.json
+CATALOG_DIRS=()
+add_catalog() {
+    local d="$1" x
+    [[ -n "$d" && -d "$d" ]] || return 0
+    d="$(cd "$d" && pwd)"
+    for x in "${CATALOG_DIRS[@]+"${CATALOG_DIRS[@]}"}"; do [[ "$x" == "$d" ]] && return 0; done
+    CATALOG_DIRS+=("$d")
+}
+[[ -f "$COLL/marketplace-directory.json" ]] && add_catalog "$COLL"
+if [[ -n "${RESOURCE_LISTINGS_PATH:-}" ]]; then add_catalog "$RESOURCE_LISTINGS_PATH"
+else add_catalog "$COLL/../agent-index-resource-listings"; fi
+if [[ -n "${CATALOG_PATHS:-}" ]]; then
+    IFS=':' read -r -a _extra <<< "$CATALOG_PATHS"
+    for _d in "${_extra[@]}"; do add_catalog "$_d"; done
+fi
+for _f in "$COLL"/../*/marketplace-directory.json; do
+    [[ -f "$_f" ]] && add_catalog "$(dirname "$_f")"
+done
+COLL_DIRBASE="$(basename "$COLL")"
+
 # ── Check 10: resource-listing directory_version bumped when content changed (v1.5.1) ─
 # Detects the silent-staleness class (bug 20260607-8d20ea22-131906-d1rv): an entry's
 # current_version moved but the directory file's top-level directory_version did not, so
@@ -264,9 +294,10 @@ log "  errors: $(( ${#ERRORS[@]} - e9 ))"
 # agent-index-resource-listings git clone; skip-with-notice otherwise.
 log "Check 10: resource-listing directory_version bump"
 e10=${#ERRORS[@]}
-RL="$COLL/../agent-index-resource-listings"
-[[ -n "${RESOURCE_LISTINGS_PATH:-}" ]] && RL="$RESOURCE_LISTINGS_PATH"
-if [[ -d "$RL/.git" ]]; then
+c10=0
+for RL in "${CATALOG_DIRS[@]+"${CATALOG_DIRS[@]}"}"; do
+  [[ -d "$RL/.git" ]] || continue
+  c10=$((c10+1))
   for dir in marketplace-directory.json infrastructure-directory.json filesystem-adapter-directory.json; do
     f="$RL/$dir"; [[ -f "$f" ]] || continue
     # did the file change vs HEAD?
@@ -276,13 +307,14 @@ if [[ -d "$RL/.git" ]]; then
       if [[ -n "$cur" && "$cur" == "$head" ]]; then
         # content changed but version identical — but ignore if ONLY directory_version/last_updated differ trivially: still error, content beyond last_updated changed
         if ( cd "$RL" && git diff HEAD -- "$dir" | grep -E '^[+-]' | grep -vqE '"(last_updated|directory_version)"' ); then
-          err "  $dir: content changed but directory_version is still $cur — staleness checks will not see this release (bug 20260607-8d20ea22-131906-d1rv). Bump directory_version."
+          err "  $(basename "$RL")/$dir: content changed but directory_version is still $cur — staleness checks will not see this release (bug 20260607-8d20ea22-131906-d1rv). Bump directory_version."
         fi
       fi
     fi
   done
-else
-  log "  skipped: no agent-index-resource-listings git clone at $RL (set RESOURCE_LISTINGS_PATH to enable)"
+done
+if [[ "$c10" -eq 0 ]]; then
+  log "  skipped: no catalog git clone found (set RESOURCE_LISTINGS_PATH / CATALOG_PATHS, or place catalog clones as siblings)"
 fi
 log "  errors: $(( ${#ERRORS[@]} - e10 ))"
 
@@ -343,18 +375,10 @@ log "  errors: $(( ${#ERRORS[@]} - e11 )), warnings: $(( ${#WARNINGS[@]} - w11 )
 # Reads LOCAL clone tags only — no network fetch.
 log "Check 12: catalog current_version has a matching released git tag (phantom-version guard)"
 e12=${#ERRORS[@]}; w12=${#WARNINGS[@]}
-RLDIR=""
-if [[ -f "$COLL/marketplace-directory.json" ]]; then
-    RLDIR="$COLL"
-elif [[ -n "${RESOURCE_LISTINGS_PATH:-}" ]] && [[ -f "$RESOURCE_LISTINGS_PATH/marketplace-directory.json" ]]; then
-    RLDIR="$RESOURCE_LISTINGS_PATH"
-elif [[ -f "$COLL/../agent-index-resource-listings/marketplace-directory.json" ]]; then
-    RLDIR="$COLL/../agent-index-resource-listings"
+if [[ ${#CATALOG_DIRS[@]} -eq 0 ]]; then
+    log "  skipped: no catalog directory files found (set RESOURCE_LISTINGS_PATH / CATALOG_PATHS, or place catalog clones as siblings)"
 fi
-if [[ -z "$RLDIR" ]]; then
-    log "  skipped: no resource-listings directory files found (set RESOURCE_LISTINGS_PATH or place a sibling agent-index-resource-listings clone)"
-else
-    RLDIR="$(cd "$RLDIR" && pwd)"
+for RLDIR in "${CATALOG_DIRS[@]+"${CATALOG_DIRS[@]}"}"; do
     CLONE_BASE="$(cd "$RLDIR/.." && pwd)"
     for dj in marketplace-directory.json filesystem-adapter-directory.json infrastructure-directory.json; do
         df="$RLDIR/$dj"
@@ -410,7 +434,7 @@ else
             }
         ' "$df")
     done
-fi
+done
 log "  errors: $(( ${#ERRORS[@]} - e12 )), warnings: $(( ${#WARNINGS[@]} - w12 ))"
 
 
@@ -420,30 +444,43 @@ log "  errors: $(( ${#ERRORS[@]} - e12 )), warnings: $(( ${#WARNINGS[@]} - w12 )
 # the catalog advertises a version the source has not shipped (listings not restamped).
 log "Check 13: catalog current_version matches collection.json version ($COLL_VERSION)"
 e13=${#ERRORS[@]}; w13=${#WARNINGS[@]}
-RLDIR13=""
-if [[ -f "$COLL/marketplace-directory.json" ]]; then RLDIR13="$COLL"
-elif [[ -n "${RESOURCE_LISTINGS_PATH:-}" ]] && [[ -f "$RESOURCE_LISTINGS_PATH/marketplace-directory.json" ]]; then RLDIR13="$RESOURCE_LISTINGS_PATH"
-elif [[ -f "$COLL/../agent-index-resource-listings/marketplace-directory.json" ]]; then RLDIR13="$COLL/../agent-index-resource-listings"
-fi
-if [[ -z "$RLDIR13" ]]; then
-    log "  skipped: no resource-listings directory reachable"
+# preflight 1.9.0: search EVERY reachable catalog (not only the public one), and match an entry
+# by its "name" (the collection name) as well as by repo basename. Before 1.9.0 the match was
+# repo-basename == collection name only, which holds for agent-index-core/-marketplace but never
+# for a marketplace collection (name "projects", repo agent-index-marketplace-projects) — so this
+# check silently skipped every marketplace collection it was written for (privatecatalogunchecked).
+if [[ ${#CATALOG_DIRS[@]} -eq 0 ]]; then
+    log "  skipped: no catalog directory reachable (set RESOURCE_LISTINGS_PATH / CATALOG_PATHS)"
 else
-    RLDIR13="$(cd "$RLDIR13" && pwd)"
-    cat_ver=""
-    for dj in marketplace-directory.json filesystem-adapter-directory.json infrastructure-directory.json; do
-        [[ -f "$RLDIR13/$dj" ]] || continue
-        found=$(awk -v want="$COLL_NAME" '
-            /"current_version"[[:space:]]*:/ { v=$0; sub(/.*"current_version"[[:space:]]*:[[:space:]]*"/,"",v); sub(/".*/,"",v); cv=v; next }
-            /"repo_url"[[:space:]]*:/ { if(cv==""){next} u=$0; sub(/.*"repo_url"[[:space:]]*:[[:space:]]*"/,"",u); sub(/".*/,"",u); sub(/\/+$/,"",u); n=split(u,p,"/"); if(p[n]==want){print cv; exit} cv="" }
-        ' "$RLDIR13/$dj")
-        [[ -n "$found" ]] && { cat_ver="$found"; break; }
+    hits13=0
+    for RLDIR13 in "${CATALOG_DIRS[@]}"; do
+        for dj in marketplace-directory.json filesystem-adapter-directory.json infrastructure-directory.json; do
+            [[ -f "$RLDIR13/$dj" ]] || continue
+            while IFS= read -r cat_ver; do
+                [[ -n "$cat_ver" ]] || continue
+                hits13=$((hits13+1))
+                where="$(basename "$RLDIR13")/$dj"
+                if [[ "$cat_ver" != "$COLL_VERSION" ]]; then
+                    err "  $where: current_version ($cat_ver) for $COLL_NAME != collection.json version ($COLL_VERSION) -- catalog not updated to match source"
+                else
+                    log "  OK: $where current_version $cat_ver == collection.json $COLL_VERSION"
+                fi
+            done < <(awk -v want="$COLL_NAME" -v wantdir="$COLL_DIRBASE" '
+                /"name"[[:space:]]*:/ { n=$0; sub(/.*"name"[[:space:]]*:[[:space:]]*"/,"",n); sub(/".*/,"",n); nm=n; next }
+                /"current_version"[[:space:]]*:/ { v=$0; sub(/.*"current_version"[[:space:]]*:[[:space:]]*"/,"",v); sub(/".*/,"",v); cv=v; next }
+                /"repo_url"[[:space:]]*:/ {
+                    if (cv=="") { nm=""; next }
+                    u=$0; sub(/.*"repo_url"[[:space:]]*:[[:space:]]*"/,"",u); sub(/".*/,"",u); sub(/\/+$/,"",u)
+                    k=split(u,p,"/"); b=p[k]; sub(/\.git$/,"",b)
+                    if (nm==want || b==want || b==wantdir) print cv
+                    cv=""; nm=""
+                }
+            ' "$RLDIR13/$dj")
+        done
     done
-    if [[ -z "$cat_ver" ]]; then
-        log "  skipped: $COLL_NAME not found in any reachable directory (org-internal collection?)"
-    elif [[ "$cat_ver" != "$COLL_VERSION" ]]; then
-        err "  catalog current_version ($cat_ver) for $COLL_NAME != collection.json version ($COLL_VERSION) -- listings not restamped to match source"
-    else
-        log "  OK: catalog current_version $cat_ver == collection.json $COLL_VERSION"
+    if [[ "$hits13" -eq 0 ]]; then
+        searched=""; for d in "${CATALOG_DIRS[@]}"; do searched="$searched $(basename "$d")"; done
+        log "  skipped: $COLL_NAME not listed in any reachable catalog (searched:$searched) -- org-internal collection?"
     fi
 fi
 log "  errors: $(( ${#ERRORS[@]} - e13 )), warnings: $(( ${#WARNINGS[@]} - w13 ))"

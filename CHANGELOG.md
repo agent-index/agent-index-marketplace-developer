@@ -1,5 +1,20 @@
 ﻿# Developer Collection — Changelog
 
+## [1.12.0] — 2026-09-30 — preflight checks every catalog, and Check 13 actually matches
+
+### Fixed
+- **Checks 10, 12 and 13 looked only at the public catalog** (`preflight` task 1.8.0 → 1.9.0; `lib/preflight-cli.sh`). Since core 3.31.0 a collection can be listed in a private catalog instead — `cx-studio` is listed only in `agent-index-private-marketplace` — and none of the three checks read it. cx-studio 4.0.0 shipped with that listing still advertising 3.0.4, and preflight passed it (bug `privatecatalogunchecked`). The CLI now builds one catalog list — `$COLL` if it is a catalog repo, `RESOURCE_LISTINGS_PATH` or the sibling `agent-index-resource-listings`, a new `CATALOG_PATHS` (colon-separated), and every sibling clone holding a `marketplace-directory.json` — and all three checks iterate it. Messages name the catalog they came from.
+- **Check 13 never matched a marketplace collection.** It compared the catalog entry's repo basename with the collection name. That holds for `agent-index-core` and `agent-index-marketplace` and for nothing else: every marketplace repo is `agent-index-marketplace-{name}`, so since 1.10.0 the check reported "not found in any reachable directory" for every collection it was written for — `projects`, `library` and `strategy` included, not only private ones. It now matches on the entry's `name`, the repo basename, or the collection's directory name, reports every catalog that lists the collection, and when none does, says which catalogs it searched.
+
+### Verified
+- Positive: cx-studio 4.0.1 now matches its private listing; projects 4.3.0, library 1.6.1 and core 3.31.0 match the public listings (all previously "skipped" apart from core).
+- Negative: a private listing reverted to 4.0.0 without a `directory_version` bump fails with two errors — Check 10 (content changed, `directory_version` unchanged) and Check 13 (4.0.0 != 4.0.1). Before this release both passed silently.
+- Sweep of all 13 source clones under Check 13, which runs for the first time: every catalog listing matches its source. The only mismatch was this collection's own public listing (1.11.0), which this release updates to 1.12.0 (`agent-index-resource-listings` `directory_version` 1.26.0 → 1.27.0).
+
+### Changed
+- `ROADMAP.md` `Current version` corrected from 1.6.1 (five releases stale) to 1.12.0.
+- All 6 manifests restamped to `collection_version` 1.12.0.
+
 ## [1.11.0] — 2026-09-20 — Release C.1.5.3: spec-doc currency check + CHANGELOG re-encode
 
 Every item below was verified against the tree before it was written here, and the "Not in this release" section is deliberate. Companion to core 3.28.3.
