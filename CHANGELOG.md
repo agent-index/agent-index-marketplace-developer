@@ -1,5 +1,20 @@
 ﻿# Developer Collection — Changelog
 
+## [1.13.0] — 2026-09-30 — release-push tags only merged commits
+
+### Changed
+- **`release-push` is branch-aware** (`release` task 1.1.0 → 1.2.0; `lib/release/release-push.{ps1,sh}`). A release tag now always points at a commit on the repo's default branch.
+  - **On the default branch:** unchanged — commit, push, tag. Orgs whose repos have no PR rules see no difference.
+  - **On any other branch:** commit, push the branch, then **defer the tag** and print the PR to open. New `-TagOnly` / `--tag-only` mode, run after the PR merges: fetches, confirms `origin/<default>`'s `collection.json` carries the manifest version (stops before later repos if not, so listings stay last), and tags that merged commit.
+  - Why: before this, releasing from a feature branch tagged the pre-merge commit. Under a squash or rebase merge that commit never lands on the default branch, so tag-pinned clones would install code that is not on `main`. Releasing from `main` instead only worked for accounts allowed to bypass the repo's PR rule — every Agent Index Inc release on 2026-09-28/30 printed "Bypassed rule violations".
+- The push output is no longer buried: a push that succeeded only by **bypassing repository rules** now prints a warning, and a push rejected for a **protected branch** explains the branch + PR + `-TagOnly` route instead of just failing.
+
+### Verified
+- `release-push.sh` against throwaway repos with a local bare remote: a release from `main` tags `HEAD` as before; a release from `release/x-1.0.2` pushes the branch and defers; `--tag-only` before the merge stops (`origin/main` still at 1.0.1); after a squash merge `--tag-only` tags the squash commit on `main` — not the branch commit. `release-push.ps1` carries the same logic line for line; it could not be executed in the authoring sandbox (no PowerShell), so its first real run is the next release.
+
+### Changed (housekeeping)
+- All 6 manifests restamped to `collection_version` 1.13.0.
+
 ## [1.12.0] — 2026-09-30 — preflight checks every catalog, and Check 13 actually matches
 
 ### Fixed

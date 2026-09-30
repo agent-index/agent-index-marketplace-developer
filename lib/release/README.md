@@ -15,6 +15,10 @@ prep/push logic now lives in committed, version-controlled scripts; the `release
   that truncated create-org.md -- and a non-HTTPS `origin`), CHANGELOG date-stamp at push, then
   per-repo commit -> push -> tag `v<version>` in `push_order` (resource-listings LAST; an existing
   identical tag is left, a tag pointing elsewhere is NEVER moved), then the /shared/dist handoff note.
+  **Branch-aware (1.13.0):** on the default branch it tags as it pushes; on any other branch (the PR
+  workflow) it pushes the branch and defers tagging. After the PR merges, re-run with `-TagOnly` /
+  `--tag-only` to tag the merged commit on `origin/<default>` -- never a pre-merge commit. It also
+  warns when a push only succeeded by bypassing repository rules.
 
 ## Release-delta manifest (the ONLY thing the agent produces)
 ```json
@@ -38,7 +42,9 @@ for them (no adapter steps when adapters are untouched).
 # Windows
 powershell -ExecutionPolicy Bypass -File lib\release\release-prep.ps1 -Manifest .agent-index\release-c150.json
 powershell -ExecutionPolicy Bypass -File lib\release\release-push.ps1 -Manifest .agent-index\release-c150.json
+powershell -ExecutionPolicy Bypass -File lib\release\release-push.ps1 -Manifest .agent-index\release-c150.json -TagOnly   # after the PR merges
 # macOS/Linux
 bash lib/release/release-prep.sh .agent-index/release-c150.json
 bash lib/release/release-push.sh .agent-index/release-c150.json
+bash lib/release/release-push.sh .agent-index/release-c150.json --tag-only   # after the PR merges
 ```

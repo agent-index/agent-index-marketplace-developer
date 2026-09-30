@@ -1,7 +1,7 @@
 ---
 name: release
 type: task
-version: 1.1.0
+version: 1.2.0
 collection: developer
 description: Generates a matched pair of host-native release scripts — an idempotent build-and-prep script (adapter unit tests with module-resolution exit-classification, native bundle build + checksum stamp, manifest + resource-listings restamp, fail-closed version-consistency gate) and a gated push script (changelog date stamp, mandatory preflight, per-repo commit→push→tag v<version> in code-first/listings-last order, backend-distribution handoff). The ship-side counterpart to core's clone-script-generator.
 stateful: false
@@ -114,6 +114,13 @@ bash lib/release/release-prep.sh .agent-index/release-<headline-tag>.json
 bash lib/release/release-push.sh .agent-index/release-<headline-tag>.json
 ```
 
+**Branch-aware push (release 1.2.0).** A release tag must point at the commit that lands on the repo's default branch. `release-push` checks which branch each repo has checked out:
+
+- **On the default branch** (a repo with no PR rules): commit → push → tag, as before.
+- **On any other branch** (the PR workflow — the right choice whenever the default branch is protected): commit → push the branch, then **defer the tag** and print the PR to open. After the PR(s) merge — code repos first, listings last — the developer runs the push script again with `-TagOnly` / `--tag-only`, which fetches, checks that `origin/<default>`'s `collection.json` carries the manifest version, and tags that merged commit. Tagging before the merge is wrong under a squash or rebase merge: the tag would point at a commit that never lands on the default branch.
+
+Tell the developer which mode they are in. If the default branch is protected, recommend creating a release branch in each repo *before* running prep (`git switch -c release/<name>-v<version>`). The push script warns when a push only succeeded by bypassing repository rules, and explains a protected-branch rejection instead of just failing.
+
 Remind them the scripts run **natively** -- the agent neither builds nor pushes (esbuild needs the host binary; agent-side git over a synced mount tears commits).
 
 Confirm the release-checklist (the developer collection's release-checklist reference) is satisfied before they run them.
@@ -138,6 +145,7 @@ The deliverable is a matched pair of self-contained host-native scripts (prep + 
 - Always generate BOTH scripts (prep + push); the build/checksum/manifest/listings stamping belongs in prep, the commit/push/tag in push. Never fold the version-consistency + manifest-alignment gate into push-only — it must fail at the earliest (prep) phase.
 - Never pin a tag to a branch (`main`) — tags are `v<version>` only.
 - Never force-move or delete a published tag in the generated script.
+- Never tag a commit that is not on the repo's default branch. From a feature branch, tagging is deferred to `-TagOnly` after the merge.
 - Never place `agent-index-resource-listings` anywhere but last in the push order.
 - Never weaken the preflight gate from error-blocking to advisory.
 - Compute adapter bundle checksums on git-blob LF bytes, never the working-tree copy.

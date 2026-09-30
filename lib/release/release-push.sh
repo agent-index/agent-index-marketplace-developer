@@ -3,9 +3,18 @@
 # Reads the same release-delta manifest and performs the irreversible phase:
 # PRE-PUSH DIFF + INTEGRITY GATE -> remote-URL HTTPS guard -> CHANGELOG date-stamp ->
 # per-repo commit -> push -> tag v<version> in push_order (resource-listings LAST; never move a
-# published tag). Host-run only (real repos, credentials, clean tree). Usage: bash release-push.sh <manifest.json>
+# published tag). Host-run only (real repos, credentials, clean tree).
+#
+# Branch-aware (developer 1.13.0): a release tag must point at a commit on the repo's default
+# branch. Run from the default branch, this behaves as before (commit -> push -> tag). Run from
+# any other branch (the PR workflow), it commits and pushes the branch, then DEFERS tagging --
+# open the PR, merge it, then run with --tag-only to tag the merged commit on origin/<default>.
+#
+# Usage: bash release-push.sh <manifest.json>              # commit + push (+ tag if on default branch)
+#        bash release-push.sh <manifest.json> --tag-only   # after merge: tag origin/<default>
 set -u
 M="${1:-}"
+TAG_ONLY=0; [ "${2:-}" = "--tag-only" ] && TAG_ONLY=1
 die(){ echo "FATAL: $*"; exit 2; }
 confirm(){ read -r -p "$1 [y/N] " a; [ "$a" = "y" ] || [ "$a" = "Y" ]; }
 [ -n "$M" ] && [ -f "$M" ] || die "usage: release-push.sh <manifest.json>"
@@ -20,6 +29,67 @@ import json
 for r in json.load(open('$M')).get('repos',[]): print('%s\t%s\t%s'%(r['name'],r['path'],r['version']))
 ")
 [ ${#ORDER[@]} -gt 0 ] || die "manifest push_order is empty"
+
+# The repo's default branch, from origin/HEAD; falls back to main, then master.
+default_branch(){
+  local b; b=$(git -C "$1" symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null); b="${b#origin/}"
+  if [ -z "$b" ]; then
+    if git -C "$1" show-ref --verify --quiet refs/remotes/origin/main; then b=main
+    elif git -C "$1" show-ref --verify --quiet refs/remotes/origin/master; then b=master; else b=main; fi
+  fi
+  echo "$b"
+}
+# Run a push, show its output, and surface a GitHub rule bypass instead of burying it.
+push_and_report(){
+  local out rc; out=$("$@" 2>&1); rc=$?; echo "$out" | sed 's/^/  /'
+  if echo "$out" | grep -q "Bypassed rule violations"; then
+    echo "  WARNING: this push only succeeded by BYPASSING the repo's rules (see above). Anyone without"
+    echo "           bypass rights will be rejected -- release from a branch + PR, then --tag-only."
+  fi
+  if [ $rc -ne 0 ] && echo "$out" | grep -qiE "protected branch|must be made through a pull request|GH006|GH013"; then
+    echo "  The default branch requires a pull request. Check out a release branch, re-run this"
+    echo "  script to push it, open the PR, then run with --tag-only after it merges."
+  fi
+  return $rc
+}
+# Tag commit $3 in repo $1 as v$2, never moving a published tag.
+tag_commit(){
+  local p="$1" v="$2" sha="$3" n="$4" tag="v$2" at
+  if [ -n "$(git -C "$p" tag -l "$tag")" ]; then
+    at=$(git -C "$p" rev-list -n1 "$tag")
+    if [ "$at" = "$sha" ]; then echo "  tag $tag already at $sha -- left as is"
+    else echo "  WARNING: tag $tag exists but points elsewhere ($at). NOT moving it. Cut a NEW version if a re-tag is needed."; fi
+    return 0
+  fi
+  confirm "  tag $n $tag at ${sha:0:12} and push tag?" || { echo "  skipped tag for $n"; return 0; }
+  git -C "$p" tag -a "$tag" "$sha" -m "release $tag" || die "tag failed for $n"
+  push_and_report git -C "$p" push origin "$tag" || die "tag push failed for $n"
+}
+
+# ---- --tag-only: after the release PRs merged, tag the merged commit on each default branch ----
+if [ $TAG_ONLY -eq 1 ]; then
+  echo "=================== TAG-ONLY: tag merged releases on the default branch ==================="
+  for n in "${ORDER[@]}"; do
+    p="${PATHS[$n]}"; v="${VERS[$n]}"; [ -d "$p/.git" ] || { echo "SKIP $n (no git repo)"; continue; }
+    [ -n "$v" ] || { echo "SKIP $n (no version in manifest)"; continue; }
+    echo ""; echo "----- $n v$v -----"
+    git -C "$p" fetch origin --tags --quiet || die "fetch failed for $n"
+    db=$(default_branch "$p"); sha=$(git -C "$p" rev-parse "origin/$db" 2>/dev/null) || die "no origin/$db in $n"
+    echo "  origin/$db is at $(git -C "$p" log --oneline -1 "$sha")"
+    if git -C "$p" cat-file -e "$sha:collection.json" 2>/dev/null; then
+      got=$(git -C "$p" show "$sha:collection.json" | grep -m1 '"version"' | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+      [ "$got" = "$v" ] || die "$n: origin/$db collection.json is $got, manifest says $v -- has the release PR merged? Stopping before later repos (listings stay last)."
+    fi
+    tag_commit "$p" "$v" "$sha" "$n"
+  done
+  echo ""
+  if [ "$(python3 -c "import json;print(json.load(open('$M')).get('dist_publish',False))")" = "True" ]; then
+    echo "DIST PUBLISH HANDOFF: now clone at the new tags (lib/clone) then run create-org/apply-updates"
+    echo "to diff the clone against the backend and republish /shared/dist/ + manifest.json; verify the manifest."
+  fi
+  echo "TAG-ONLY COMPLETE."
+  exit 0
+fi
 
 echo "=================== PRE-PUSH DIFF + INTEGRITY GATE ==================="
 integrity_fail=0
@@ -61,6 +131,7 @@ fi
 confirm "Have you reviewed EVERY diff above and confirm all changes are intended?" || die "aborted at diff-review gate"
 
 echo "=================== DATE-STAMP + PUSH ==================="
+DEFERRED=0
 for n in "${ORDER[@]}"; do
   p="${PATHS[$n]}"; v="${VERS[$n]}"; [ -d "$p/.git" ] || { echo "SKIP $n"; continue; }
   echo ""; echo "----- pushing $n v$v -----"
@@ -74,24 +145,32 @@ for n in "${ORDER[@]}"; do
     git -C "$p" commit -m "release: $n v$v" || die "commit failed for $n"
   else echo "  nothing staged to commit"; fi
   confirm "  push $n to origin?" || { echo "  skipped push for $n"; continue; }
-  git -C "$p" push origin HEAD || die "push failed for $n"
-  # tag v<version>: leave an existing identical tag; NEVER move a published tag
-  if [ -z "$v" ]; then echo "  no version supplied for $n -- pushed, tag SKIPPED (set version in the manifest if this repo is tag-pinned, e.g. resource-listings)"; continue; fi
-  tag="v$v"
-  existing=$(git -C "$p" tag -l "$tag")
-  if [ -n "$existing" ]; then
-    at=$(git -C "$p" rev-list -n1 "$tag"); head=$(git -C "$p" rev-parse HEAD)
-    if [ "$at" = "$head" ]; then echo "  tag $tag already at HEAD -- left as is"
-    else echo "  WARNING: tag $tag exists but points elsewhere ($at). NOT moving it. Cut a NEW version if a re-tag is needed."; fi
+  cur=$(git -C "$p" rev-parse --abbrev-ref HEAD); db=$(default_branch "$p")
+  if [ "$cur" = "$db" ]; then
+    push_and_report git -C "$p" push origin HEAD || die "push failed for $n"
   else
-    confirm "  tag $n $tag and push tag?" && { git -C "$p" tag -a "$tag" -m "release $tag" && git -C "$p" push origin "$tag"; } || echo "  skipped tag for $n"
+    push_and_report git -C "$p" push -u origin HEAD || die "push failed for $n"
   fi
+  if [ -z "$v" ]; then echo "  no version supplied for $n -- pushed, tag SKIPPED (set version in the manifest if this repo is tag-pinned, e.g. resource-listings)"; continue; fi
+  if [ "$cur" != "$db" ]; then
+    # A tag must point at the commit that lands on the default branch; a squash/rebase merge
+    # would leave a pre-merge tag pointing at a commit that is not on it.
+    echo "  on branch '$cur', not '$db': tag v$v DEFERRED. Open a PR $cur -> $db; after it merges run:"
+    echo "      bash release-push.sh $M --tag-only"
+    DEFERRED=1; continue
+  fi
+  tag_commit "$p" "$v" "$(git -C "$p" rev-parse HEAD)" "$n"
 done
 echo ""
 DP=$(python3 -c "import json;print(json.load(open('$M')).get('dist_publish',False))")
-if [ "$DP" = "True" ]; then
+if [ "$DP" = "True" ] && [ $DEFERRED -eq 0 ]; then
   echo "DIST PUBLISH HANDOFF: now clone at the new tags (lib/clone) then run create-org/apply-updates"
   echo "to diff the clone against the backend and republish /shared/dist/ + manifest.json; verify the manifest."
+fi
+if [ $DEFERRED -eq 1 ]; then
+  echo "PUSH COMPLETE -- TAGS DEFERRED. Merge the release PR(s) (code repos first, listings last), then:"
+  echo "    bash release-push.sh $M --tag-only"
+  exit 0
 fi
 echo "PUSH COMPLETE."
 exit 0
