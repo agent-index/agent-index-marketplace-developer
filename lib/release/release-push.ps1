@@ -64,6 +64,57 @@ function Write-DistHandoff {
   }
 }
 
+# -TagOnly version gate at commit $sha of repo $p (name $n, manifest version $v):
+#   collection.json -> its "version" must equal the manifest version
+#   adapter.json    -> its "version" must equal the manifest version
+#   catalog repo (marketplace-/infrastructure-/filesystem-adapter-directory.json) -> every entry that
+#     lists another repo in this manifest (matched by repo_url basename or name) must carry that repo's
+#     manifest version as current_version. (The catalog repo's own tag is a repo-level counter, not
+#     any one file's directory_version, so the entries are what prove the release PR merged.)
+function Get-JsonAt([string]$p, [string]$sha, [string]$f) {
+  & git -C $p cat-file -e "${sha}:$f" 2>$null
+  if ($LASTEXITCODE -ne 0) { return $null }
+  $t = (& git -C $p show "${sha}:$f") -join "`n"
+  try { return ($t.TrimStart([char]0xFEFF) | ConvertFrom-Json) } catch { return "unreadable" }
+}
+function Test-VersionAt([string]$p, [string]$sha, [string]$n, [string]$v, [string]$label) {
+  foreach ($f in @("collection.json", "adapter.json")) {
+    $j = Get-JsonAt $p $sha $f
+    if ($null -eq $j) { continue }
+    $got = if ($j -is [string]) { "" } else { "$($j.version)" }
+    if ($got -ne $v) { Write-Host "  $label $f is $(if ($got) { $got } else { '(unreadable)' }), manifest says $v"; return $false }
+    Write-Host "  $label $f version $got == manifest"; return $true
+  }
+  $want = @{}
+  foreach ($r in $m.repos) { if ("$($r.name)" -ne $n) { $want["$($r.name)"] = @("$($r.version)", ($r.in_listings -eq $true)) } }
+  $seen = @{}; $bad = $false; $anyCat = $false
+  foreach ($c in @("marketplace-directory.json", "infrastructure-directory.json", "filesystem-adapter-directory.json")) {
+    $j = Get-JsonAt $p $sha $c
+    if ($null -eq $j) { continue }
+    $anyCat = $true
+    if ($j -is [string]) { Write-Host "  $label $c is not valid JSON"; $bad = $true; continue }
+    foreach ($prop in $j.PSObject.Properties) {
+      if (-not ($prop.Value -is [System.Array])) { continue }
+      foreach ($e in $prop.Value) {
+        if ($null -eq $e -or -not ($e.PSObject.Properties.Name -contains 'current_version')) { continue }
+        $base = ("$($e.repo_url)" -replace '/+$','') -split '/' | Select-Object -Last 1
+        $base = $base -replace '\.git$',''
+        foreach ($rn in @($want.Keys)) {
+          if ($rn -ceq $base -or $rn -ceq "$($e.name)") {
+            $seen[$rn] = $true; $rv = $want[$rn][0]
+            if ("$($e.current_version)" -ne $rv) { Write-Host "  $label ${c}: $rn current_version $($e.current_version), manifest says $rv"; $bad = $true }
+            else { Write-Host "  $label ${c}: $rn current_version $rv == manifest" }
+          }
+        }
+      }
+    }
+  }
+  if (-not $anyCat) { Write-Host "  (no collection.json / adapter.json / catalog file at $label -- no version to check)"; return $true }
+  foreach ($rn in @($want.Keys)) { if ($want[$rn][1] -and -not $seen.ContainsKey($rn)) { Write-Host "  note: $rn is in_listings but has no entry in this catalog repo" } }
+  if ($seen.Count -eq 0) { Write-Host "  note: no catalog entry lists another repo in this manifest (listings-only release) -- confirm the merge by hand" }
+  return (-not $bad)
+}
+
 # ---- -TagOnly: after the release PRs merged, tag the merged commit on each default branch ----
 if ($TagOnly) {
   Write-Host "=================== TAG-ONLY: tag merged releases on the default branch ==================="
@@ -76,12 +127,7 @@ if ($TagOnly) {
     $db = Get-DefaultBranch $p
     $sha = (& git -C $p rev-parse "origin/$db" 2>$null); if ($LASTEXITCODE -ne 0 -or -not $sha) { Die "no origin/$db in $n" }
     Write-Host "  origin/$db is at $(& git -C $p log --oneline -1 $sha)"
-    & git -C $p cat-file -e "${sha}:collection.json" 2>$null
-    if ($LASTEXITCODE -eq 0) {
-      $cj = (& git -C $p show "${sha}:collection.json") -join "`n"
-      $got = if ($cj -match '"version"\s*:\s*"([^"]+)"') { $Matches[1] } else { "" }
-      if ($got -ne $v) { Die "${n}: origin/$db collection.json is $got, manifest says $v -- has the release PR merged? Stopping before later repos (listings stay last)." }
-    }
+    if (-not (Test-VersionAt $p $sha $n $v "origin/$db")) { Die "${n}: version check failed at origin/$db (above) -- has the release PR merged? Stopping before later repos (listings stay last)." }
     Set-ReleaseTag $p $v $sha $n
   }
   Write-Host ""; Write-DistHandoff; Write-Host "TAG-ONLY COMPLETE."; exit 0
@@ -156,3 +202,4 @@ if ($deferred) {
 Write-DistHandoff
 Write-Host "PUSH COMPLETE."
 exit 0
+# AIFS:FILE-END

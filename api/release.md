@@ -1,7 +1,7 @@
 ---
 name: release
 type: task
-version: 1.2.0
+version: 1.3.0
 collection: developer
 description: Generates a matched pair of host-native release scripts — an idempotent build-and-prep script (adapter unit tests with module-resolution exit-classification, native bundle build + checksum stamp, manifest + resource-listings restamp, fail-closed version-consistency gate) and a gated push script (changelog date stamp, mandatory preflight, per-repo commit→push→tag v<version> in code-first/listings-last order, backend-distribution handoff). The ship-side counterpart to core's clone-script-generator.
 stateful: false
@@ -29,6 +29,7 @@ The agent can't safely `git push` (mount-tearing → torn commits; no host crede
 ### Inputs
 
 Gathered in the interview (Step 1):
+- **Stage or release** — stage the candidate to a distribution channel for a test org (no tags), or release it (push + tag). See "Stage → test → promote" below.
 - **Repos in this release** and each one's target version — adapter (`agent-index-filesystem-<backend>`), `agent-index-core`, `agent-index-marketplace`, `agent-index-resource-listings`, and/or marketplace collection repos. Defaults are read from each repo's `collection.json` / `adapter.json` `version` and the listings file's `directory_version`.
 - **Whether this release publishes `/shared/dist/`** (Release-C backend distribution) and the backend (`onedrive` | `gdrive`). Drives the post-push handoff text.
 - **Tag convention** — default `v<version>` per repo. Confirmed, not assumed.
@@ -37,6 +38,14 @@ Gathered in the interview (Step 1):
 ### Outputs
 
 Two host-native scripts written to `<install_root>/.agent-index/` — `prep-<headline-tag>.{ps1,sh}` (build & prep) and `push-<headline-tag>.{ps1,sh}` (gated push & tag) — surfaced to the developer to run natively, prep first. No repos are built, pushed, or published by this task itself. The push script prints the post-run handoff (the dist-publish sequence) when the release publishes `/shared/dist/`.
+
+### Stage → test → promote (distribution channels, 1.3.0)
+
+A release candidate can be installed by a test org **before** anything is tagged:
+
+1. **Stage.** `release-stage` pushes every repo in the manifest to the branch `channel/<name>` (same manifest, plus a channel name). It runs the same preflight gate as `release-prep`, never tags, and never pushes the default branch. A repo already on `channel/<name>` gets a fast-forward push (iterating). A repo on any other branch is switched with `git checkout -B channel/<name>` (working changes kept) and pushed. If the channel already holds staged commits that branch doesn't have, a repo with no new changes is left as is, and one with changes is refused unless the developer types `REPLACE` (the script shows how to add the changes to the candidate instead). Repos with nothing staged yet are pushed at `HEAD`, so the channel carries the whole set. **Cleanup:** each repo is switched back to the branch it started on after its push (`-StayOnChannel` skips this).
+2. **Test.** On the test org's admin install: create the org with distribution channel `<name>` (or set "Distribution channel" in `edit-org`), refresh clones, then "publish our org updates". To fix: `git checkout channel/<name>` in the affected repos, edit, re-stage (each goes back to its branch afterwards).
+3. **Promote.** Per repo (code repos first, listings last): open a PR `channel/<name>` → default branch and merge it, then run `release-push --tag-only` to tag the merged commits. Then refresh each repo's default branch and drop the local channel branch: `git checkout <default> && git pull && git branch -D channel/<name>`.
 
 ### Cadence & Triggers
 
@@ -50,6 +59,7 @@ On demand, once per release, AFTER the design/test/preflight stages of the devel
 
 Ask the developer (one question at a time for non-technical authors; batched for experts):
 
+0. **Stage to a channel, or release?** Stage pushes the candidate to `channel/<name>` for a test org (no tags); release pushes and tags. If stage, ask for the channel name (lowercase letters, digits and `-`, starting with a letter or digit, at most 40 characters — e.g. `dev-1`). Questions 3 and 4 below don't apply to a stage.
 1. Which repos are in this release? Offer the standard set and let them subset it.
 2. For each repo, confirm the target version. **Read the actual declared version** from the repo (`collection.json` `version`, `adapter.json` `version`, or `infrastructure-directory.json`/`marketplace-directory.json` `directory_version`) and present it as the default — do not ask the developer to retype it.
 3. Does this release publish `/shared/dist/` (backend distribution)? If yes, which backend?
@@ -114,12 +124,23 @@ bash lib/release/release-prep.sh .agent-index/release-<headline-tag>.json
 bash lib/release/release-push.sh .agent-index/release-<headline-tag>.json
 ```
 
-**Branch-aware push (release 1.2.0).** A release tag must point at the commit that lands on the repo's default branch. `release-push` checks which branch each repo has checked out:
+**Branch-aware push (developer 1.13.0).** A release tag must point at the commit that lands on the repo's default branch. `release-push` checks which branch each repo has checked out:
 
 - **On the default branch** (a repo with no PR rules): commit → push → tag, as before.
-- **On any other branch** (the PR workflow — the right choice whenever the default branch is protected): commit → push the branch, then **defer the tag** and print the PR to open. After the PR(s) merge — code repos first, listings last — the developer runs the push script again with `-TagOnly` / `--tag-only`, which fetches, checks that `origin/<default>`'s `collection.json` carries the manifest version, and tags that merged commit. Tagging before the merge is wrong under a squash or rebase merge: the tag would point at a commit that never lands on the default branch.
+- **On any other branch** (the PR workflow — the right choice whenever the default branch is protected): commit → push the branch, then **defer the tag** and print the PR to open. After the PR(s) merge — code repos first, listings last — the developer runs the push script again with `-TagOnly` / `--tag-only`, which fetches, checks the version at `origin/<default>` — `collection.json` or `adapter.json` `version` equals the manifest version; for a catalog repo, every entry that lists another repo in the manifest carries that repo's manifest version as `current_version` — and tags that merged commit. Tagging before the merge is wrong under a squash or rebase merge: the tag would point at a commit that never lands on the default branch.
 
 Tell the developer which mode they are in. If the default branch is protected, recommend creating a release branch in each repo *before* running prep (`git switch -c release/<name>-v<version>`). The push script warns when a push only succeeded by bypassing repository rules, and explains a protected-branch rejection instead of just failing.
+
+**Stage mode.** When the developer chose stage in Step 1, surface the stage invocation instead of push (prep is optional — stage runs the same preflight gate):
+
+```
+# Windows
+powershell -ExecutionPolicy Bypass -File lib\release\release-stage.ps1 -Manifest .agent-index\release-<headline-tag>.json -Channel <name>
+# macOS/Linux
+bash lib/release/release-stage.sh .agent-index/release-<headline-tag>.json --channel <name>
+```
+
+Tell them what it will do per repo (fast-forward; a repo whose channel already holds commits its branch lacks is left as is, or refused if it has changes unless they type `REPLACE`), that each repo returns to its starting branch afterwards, that it never tags, and the test-org steps it prints. When the candidate passes, walk them through **promote**: PR `channel/<name>` → default branch, merge, `release-push --tag-only`, then `git checkout <default> && git pull && git branch -D channel/<name>`. `--skip-preflight` / `-SkipPreflight` is for emergencies only; `--yes` / `-Yes` is for tests/CI only — never suggest either for a normal stage.
 
 Remind them the scripts run **natively** -- the agent neither builds nor pushes (esbuild needs the host binary; agent-side git over a synced mount tears commits).
 
@@ -146,6 +167,7 @@ The deliverable is a matched pair of self-contained host-native scripts (prep + 
 - Never pin a tag to a branch (`main`) — tags are `v<version>` only.
 - Never force-move or delete a published tag in the generated script.
 - Never tag a commit that is not on the repo's default branch. From a feature branch, tagging is deferred to `-TagOnly` after the merge.
+- Stage mode never tags and never pushes the default branch; a staged candidate reaches the default branch only through a merged PR, then `-TagOnly`.
 - Never place `agent-index-resource-listings` anywhere but last in the push order.
 - Never weaken the preflight gate from error-blocking to advisory.
 - Compute adapter bundle checksums on git-blob LF bytes, never the working-tree copy.

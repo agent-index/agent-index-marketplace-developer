@@ -66,6 +66,58 @@ tag_commit(){
   push_and_report git -C "$p" push origin "$tag" || die "tag push failed for $n"
 }
 
+# --tag-only version gate at commit $2 of repo $1 (name $3, manifest version $4, label $5):
+#   collection.json -> its "version" must equal the manifest version
+#   adapter.json    -> its "version" must equal the manifest version
+#   catalog repo (marketplace-/infrastructure-/filesystem-adapter-directory.json) -> every entry that
+#     lists another repo in this manifest (matched by repo_url basename or name) must carry that repo's
+#     manifest version as current_version. (The catalog repo's own tag is a repo-level counter, not
+#     any one file's directory_version, so the entries are what prove the release PR merged.)
+version_gate_at(){
+  python3 - "$1" "$2" "$3" "$4" "$5" "$M" <<'PY'
+import json,subprocess,sys
+p,sha,name,ver,label,mpath=sys.argv[1:7]
+def show(f):
+    r=subprocess.run(['git','-C',p,'show','%s:%s'%(sha,f)],capture_output=True)
+    return r.stdout.decode('utf-8','replace') if r.returncode==0 else None
+def jl(t):
+    try: return json.loads(t.lstrip('\ufeff'))
+    except Exception: return None
+for f in ('collection.json','adapter.json'):
+    t=show(f)
+    if t is None: continue
+    j=jl(t); got=(j or {}).get('version','')
+    if got!=ver:
+        print('  %s %s is %s, manifest says %s'%(label,f,got or '(unreadable)',ver)); sys.exit(1)
+    print('  %s %s version %s == manifest'%(label,f,got)); sys.exit(0)
+cats=[c for c in ('marketplace-directory.json','infrastructure-directory.json','filesystem-adapter-directory.json') if show(c) is not None]
+if not cats:
+    print('  (no collection.json / adapter.json / catalog file at %s -- no version to check)'%label); sys.exit(0)
+m=json.load(open(mpath))
+want={r['name']:(r.get('version',''),bool(r.get('in_listings',False))) for r in m.get('repos',[]) if r.get('name')!=name}
+seen=set(); bad=0
+for c in cats:
+    j=jl(show(c)) or {}
+    for k,arr in j.items():
+        if not isinstance(arr,list): continue
+        for e in arr:
+            if not isinstance(e,dict) or 'current_version' not in e: continue
+            base=str(e.get('repo_url','')).rstrip('/').split('/')[-1]
+            if base.endswith('.git'): base=base[:-4]
+            for rn,(rv,_) in want.items():
+                if rn in (base,e.get('name')):
+                    seen.add(rn)
+                    if e['current_version']!=rv:
+                        print('  %s %s: %s current_version %s, manifest says %s'%(label,c,rn,e['current_version'],rv)); bad=1
+                    else:
+                        print('  %s %s: %s current_version %s == manifest'%(label,c,rn,rv))
+for rn,(rv,inl) in want.items():
+    if inl and rn not in seen: print('  note: %s is in_listings but has no entry in this catalog repo'%rn)
+if not seen: print('  note: no catalog entry lists another repo in this manifest (listings-only release) -- confirm the merge by hand')
+sys.exit(bad)
+PY
+}
+
 # ---- --tag-only: after the release PRs merged, tag the merged commit on each default branch ----
 if [ $TAG_ONLY -eq 1 ]; then
   echo "=================== TAG-ONLY: tag merged releases on the default branch ==================="
@@ -76,10 +128,7 @@ if [ $TAG_ONLY -eq 1 ]; then
     git -C "$p" fetch origin --tags --quiet || die "fetch failed for $n"
     db=$(default_branch "$p"); sha=$(git -C "$p" rev-parse "origin/$db" 2>/dev/null) || die "no origin/$db in $n"
     echo "  origin/$db is at $(git -C "$p" log --oneline -1 "$sha")"
-    if git -C "$p" cat-file -e "$sha:collection.json" 2>/dev/null; then
-      got=$(git -C "$p" show "$sha:collection.json" | grep -m1 '"version"' | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
-      [ "$got" = "$v" ] || die "$n: origin/$db collection.json is $got, manifest says $v -- has the release PR merged? Stopping before later repos (listings stay last)."
-    fi
+    version_gate_at "$p" "$sha" "$n" "$v" "origin/$db" || die "$n: version check failed at origin/$db (above) -- has the release PR merged? Stopping before later repos (listings stay last)."
     tag_commit "$p" "$v" "$sha" "$n"
   done
   echo ""
@@ -174,3 +223,4 @@ if [ $DEFERRED -eq 1 ]; then
 fi
 echo "PUSH COMPLETE."
 exit 0
+# AIFS:FILE-END

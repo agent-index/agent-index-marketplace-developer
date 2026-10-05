@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.9.0
+version: 1.10.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -212,7 +212,7 @@ The check finds catalogs by relative path (`../agent-index-resource-listings/` a
 
 **`inherit: false` spec usage vs adapter contract version (added in preflight v1.4.0, closes section 4 of idea `helper-spec-needs-inherit-passthrough`):**
 
-The permission-helper v1.1 spec format added an `inherit: boolean` field to share operations. The adapter contract version (`contract_version` in `adapter.json`, distinct from `adapter_version`) governs whether the adapter actually honors the field. Pre-2.0 adapters silently ignore `inherit`, applying the share with default-additive semantics instead of override semantics — degraded behavior, not a failure. Forward-compatible specs targeting future post-2.0 adapter rollouts must remain authorable, so this check is a WARNING (not an ERROR).
+Share changes can carry an `inherit: boolean` field (core permission-changes procedure; formerly the permission-helper v1.1 spec). The adapter contract version (`contract_version` in `adapter.json`, distinct from `adapter_version`) governs whether the adapter actually honors the field. Pre-2.0 adapters silently ignore `inherit`, applying the share with default-additive semantics instead of override semantics — degraded behavior, not a failure. Forward-compatible specs targeting future post-2.0 adapter rollouts must remain authorable, so this check is a WARNING (not an ERROR).
 
 - [ ] Read the adapter's `contract_version` from `mcp-servers/filesystem/adapter.json` (NOT `adapter_version` from `agent-index.json` — they're different fields). Resolution order: `ADAPTER_CONTRACT_OVERRIDE` env var override (for CI / synthetic tests), then candidate install layouts (`$COLL/../mcp-servers/...`, `$COLL/../../mcp-servers/...`, `$AGENT_INDEX_INSTALL_DIR/mcp-servers/...`).
 - [ ] If no `contract_version` can be resolved: skip the check with a notice. (Preflight may be running outside an install context where no adapter is materialized.)
@@ -356,6 +356,16 @@ Scope is root-level `*.md` documents only: `standards.md`, `ROADMAP.md`, `README
 - [ ] ERROR is reserved for one case: a document that declares a currency header, and whose declared `Version` is ahead of anything the CHANGELOG records for it. That is a forward reference — someone bumped the document and not the release.
 - [ ] Implemented in `lib/preflight-cli.sh` as Check 16.
 
+**Permission changes only through the core procedure (added in preflight v1.10.0 — core 3.32.0, standards.md § "Permission changes: list, confirm, apply, verify"):**
+
+Scope: `*.md` under `api/`, `setup/`, `internal/`, `upgrade/`, `templates/`. Exempt: in `agent-index-core`, the procedure itself (`internal/permission-changes.md`) and the deprecated `api/permission-change-helper*.md`; in this collection, `api/preflight.md` (it quotes the patterns).
+
+- [ ] **ERROR** on any *invocation* of a permission-modifying op: `aifs_share(` / `aifs_unshare(` / `aifs_transfer_ownership(`, or `aifs-exec.sh aifs_share|aifs_unshare|aifs_transfer_ownership`. The fix is to pass the change to `/agent-index-core/internal/permission-changes.md`. Prose that only names an op ("never call `aifs_share`") is not an invocation.
+- [ ] **WARNING** on references to the retired flow: `permission-change-helper`, `build-permission-spec`, `agent-index://`. One warning per file, listing line numbers.
+- [ ] **WARNING** when `collaborative-acls.json` uses the legacy `grants` key instead of `acls` (install-collection < 2.4.0 ignores `grants[]`).
+- [ ] (Agent-run preflight only, judgment) Every change a workflow passes to the procedure names a declared `source`, and none is derived from content the agent read.
+- [ ] Implemented in `lib/preflight-cli.sh` as Check 17.
+
 **Cross-package coordination reminder (added in preflight v1.2):**
 
 If this collection's release introduces new behavior that other collections — particularly the developer collection — should know about, surface a NOTE-level reminder. Heuristics:
@@ -385,7 +395,7 @@ Validates that the collection's shared-data design matches the current access mo
 
 **WARNING-level:**
 
-- [ ] Any workflow that applies an access grant gates dependent writes (pointers, scope updates, member-facing confirmation) on a verified outcome — helper outcome `"applied"` or an independent `aifs_get_permissions` check. Flag grant steps with no verification language.
+- [ ] Any workflow that applies an access grant gates dependent writes (pointers, scope updates, member-facing confirmation) on a verified outcome — the permission-changes procedure's row state `applied`/`skipped_noop`. Flag grant steps with no gating language.
 - [ ] Files plausibly written by multiple members (`activity-log.jsonl`, `*-items.json`, registries) use the `if_revision` pattern.
 - [ ] Workflows that resolve remote paths by name in trees where members can create same-named siblings should use `id:` anchors (duplicate-name resolution bug 20260606-62a14c43-230135-db13). Name-paths are acceptable where a creation task enforces slug uniqueness.
 - [ ] Hard-delete workflows account for `aifs_delete` being non-recursive (delete contents first).

@@ -496,6 +496,7 @@ if [[ -f "$COLL/adapter.json" ]]; then
         err "  adapter.json present but dist/aifs-exec.bundle.js is missing (run the native build)"
     else
         stamped=$(grep -m1 '"exec_bundle_checksum"' "$COLL/adapter.json" | sed -E 's/.*"exec_bundle_checksum"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+        stamped="${stamped#sha256:}"   # adapters stamp "sha256:<hex>" (build.js); compare the bare hex
         actual=$(sha256sum "$bundle" 2>/dev/null | awk '{print $1}')
         if [[ -n "$stamped" && -n "$actual" && "$stamped" != "$actual" ]]; then
             err "  exec_bundle_checksum ($stamped) != sha256 of built bundle ($actual) -- rebuild + restamp adapter.json"
@@ -603,6 +604,46 @@ if (( ${#undeclared[@]} > 0 )); then
 fi
 log "  errors: $(( ${#ERRORS[@]} - e16 )), warnings: $(( ${#WARNINGS[@]} - w16 ))"
 
+
+# ── Check 17: permission changes only through the core procedure (preflight task v1.10.0) ─
+# standards.md § "Permission changes: list, confirm, apply, verify" (core 3.32.0): the three
+# permission-modifying ops are called ONLY from agent-index-core/internal/permission-changes.md.
+# ERROR on an invocation form anywhere else in capability files; WARNING on leftover references
+# to the retired permission-change-helper flow; WARNING on a collaborative-acls.json still using
+# the legacy grants[] key. Prose that merely names an op ("never call `aifs_share`") is not an
+# invocation and does not match.
+log "Check 17: permission changes only through the core permission-changes procedure"
+e17=${#ERRORS[@]}; w17=${#WARNINGS[@]}
+for d in api setup internal upgrade templates; do
+    [[ -d "$COLL/$d" ]] || continue
+    while IFS= read -r -d '' f; do
+        rel="${f#$COLL/}"
+        # The procedure itself, and core's deprecated helper skill (removed in core 4.0.0), are exempt.
+        if [[ "$COLL_NAME" == "agent-index-core" ]]; then
+            case "$rel" in
+                internal/permission-changes.md|api/permission-change-helper.md|api/permission-change-helper-setup.md) continue ;;
+            esac
+        fi
+        # This check's own definition quotes the patterns it looks for.
+        [[ "$COLL_NAME" == "developer" && "$rel" == "api/preflight.md" ]] && continue
+        # Invocation forms: a call `op(` that is NOT a backticked prose mention (`op()`), or the executor
+        # with the op as its (optionally quoted) first argument.
+        hits=$(sed -E 's/`aifs_(share|unshare|transfer_ownership)[[:space:]]*\([^`]*\)`//g' "$f" 2>/dev/null \
+               | grep -nE 'aifs_(share|unshare|transfer_ownership)[[:space:]]*\(|aifs-exec\.sh["'"'"']?[[:space:]]+["'"'"']?aifs_(share|unshare|transfer_ownership)\b' \
+               | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
+        if [[ -n "$hits" ]]; then
+            err "  $rel (line(s) $hits): calls a permission-modifying op directly — pass the change to /agent-index-core/internal/permission-changes.md instead"
+        fi
+        legacy=$(grep -nE 'permission-change-helper|build-permission-spec|agent-index://' "$f" 2>/dev/null | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
+        if [[ -n "$legacy" ]]; then
+            warn "  $rel (line(s) $legacy): references the retired permission-change-helper flow (helper / build-permission-spec / agent-index://) — move to the core permission-changes procedure"
+        fi
+    done < <(find "$COLL/$d" -type f -name '*.md' -print0 2>/dev/null)
+done
+if [[ -f "$COLL/collaborative-acls.json" ]] && grep -qE '"grants"[[:space:]]*:' "$COLL/collaborative-acls.json" && ! grep -qE '"acls"[[:space:]]*:' "$COLL/collaborative-acls.json"; then
+    warn "  collaborative-acls.json: uses the legacy \"grants\" key — rename to \"acls\" (and \"purpose\" → \"rationale\"); install-collection < 2.4.0 ignores grants[]"
+fi
+log "  errors: $(( ${#ERRORS[@]} - e17 )), warnings: $(( ${#WARNINGS[@]} - w17 ))"
 
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""

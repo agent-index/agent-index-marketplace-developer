@@ -1,5 +1,39 @@
 ﻿# Developer Collection — Changelog
 
+## [1.14.0] — 2026-10-01 — Permission changes through the core procedure; new preflight Check 17
+
+**MINOR — pairs with agent-index-core 3.32.0.** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).
+
+### Added
+- **Preflight Check 17** (`preflight` 1.9.0 → 1.10.0; `lib/preflight-cli.sh`): permission changes only through core `internal/permission-changes.md`.
+  - **ERROR** on any invocation of `aifs_share` / `aifs_unshare` / `aifs_transfer_ownership` in capability files.
+  - **WARNING** on leftover `permission-change-helper` / `build-permission-spec` / `agent-index://` references.
+  - **WARNING** on a `collaborative-acls.json` using the legacy `grants` key.
+  - This replaces the "preflight flags direct calls" check that standards.md described but no version implemented.
+  - Invocation detection ignores backticked prose mentions such as `` `aifs_unshare()` `` and catches a quoted executor argument (`aifs-exec.sh "aifs_share" …`).
+
+### Changed
+- **`develop` 1.5.0 → 1.6.0** — access-model guidance: owners confirm grants through the core procedure. The verified-outcome gate is keyed on the procedure's row states. The core-edit constraint now allows an explicit admin authorization, recorded in the design record. New **sharing callers** rule set: declared sources only, any recipient (outside-org flagged), choices before the table, no access record before the gate, no destructive state from declined/cancelled rows, recompute after removals, and `all_or_nothing` only for sets that are meaningless when half-applied. The same rule set is added to core's `collection-authoring-guide.md`.
+- **`developer-guide` 1.3.0 → 1.4.0** — the sharing answer describes the procedure. The Level-3 reference implementation is now core `lib/permission-changes/permission-changes.js` (replacing `build-permission-spec.js`).
+- **`preflight`** — the `inherit:false` check and the grant-gating warning are reworded for the procedure.
+
+### Added — distribution channels (stage mode)
+- `release-stage` cleans up: each repo is checked out again on the branch it started on after its push (`--stay-on-channel` / `-StayOnChannel` keeps it on the channel). Because repos now return to the default branch, a re-run from that branch no longer replaces a channel that holds staged commits: an unchanged repo is left as is, a changed one needs a typed `REPLACE`, and the script shows how to add the changes to the candidate instead.
+- `release-stage` warns when `agent-index-core` isn't in the set (the test org's clone tooling would fall back to a core without channel support). release-checklist S1 says the same.
+- **`release` 1.2.0 → 1.3.0** — new stage mode: stage → test → promote. The Step 1 interview asks "stage to a channel, or release?"; Step 4 surfaces the stage invocation and the promote steps.
+- **`lib/release/release-stage.{sh,ps1}`** (new) — same manifest as `release-push`, plus `--channel <name>` / `-Channel <name>`. Pushes every repo in `push_order` to `channel/<name>` so a test org on that distribution channel can install the candidate before anything is tagged.
+  - Gates before any write: channel name `^[a-z0-9][a-z0-9-]{0,39}$`; no `.git/index.lock` (refuses, never deletes); an `origin` remote and a checked-out branch; the same preflight invocation `release-prep` uses (`--skip-preflight` prints a loud warning).
+  - Already on `channel/<name>`: commit `stage(<name>): <repo> v<version>` and fast-forward push, no force. On any other branch: `git checkout -B channel/<name>` (working changes kept), commit, `push --force-with-lease`, after saying the existing `origin/channel/<name>` will be **replaced**.
+  - Repos with no changes are still pushed at `HEAD`. Never tags; never pushes the default branch. Prints the test-org handoff and the promote steps (PR → merge → `release-push --tag-only` → `git checkout <default> && git pull`).
+  - `--yes` / `-Yes` answers every prompt; for tests/CI only.
+- `lib/release/README.md` and `release-checklist.md` gain the stage path.
+
+### Fixed
+- **Preflight Check 14** compared `exec_bundle_checksum` including its `sha256:` prefix against a bare hash, which would report a false mismatch on every adapter. The prefix is now stripped before comparing.
+- **`release-prep.{sh,ps1}`** no longer skips adapter repos: a repo with `adapter.json` and no `collection.json` is gated on `adapter.json` `version` and on the bundle checksum + `node --check`. `exec_bundle_checksum` is accepted as bare hex or `sha256:<hex>` (the form the adapters actually use; the old pattern matched only bare hex).
+- **`release-push --tag-only` / `-TagOnly`** now version-checks adapters (`adapter.json` at the merged commit) and catalog repos (each catalog entry that lists another repo in the manifest must carry that repo's manifest version), not only `collection.json`.
+- `api/release.md`: the branch-aware section was labelled "release 1.2.0"; it is "developer 1.13.0".
+
 ## [1.13.0] — 2026-09-30 — release-push tags only merged commits
 
 ### Changed

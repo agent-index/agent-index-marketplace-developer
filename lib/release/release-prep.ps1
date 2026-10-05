@@ -41,23 +41,44 @@ foreach ($r in $m.repos) {
   $name = "$($r.name)"; $path = "$($r.path)"; $ver = "$($r.version)"
   Write-Host "== prep: $name v$ver =="
   if (-not (Test-Path $path)) { Write-Host "  FAIL: repo path missing: $path"; $fail = $true; continue }
-  if (-not (Test-Path (Join-Path $path "collection.json"))) { Write-Host "  (no collection.json -- directory/listings repo; skipping preflight + restamp, will be pushed as-is)"; Write-Host "  OK prep $name"; continue }
+  $kind = "collection"
+  if (-not (Test-Path (Join-Path $path "collection.json"))) {
+    if (Test-Path (Join-Path $path "adapter.json")) { $kind = "adapter" }
+    else { Write-Host "  (no collection.json / adapter.json -- directory/listings repo; skipping preflight + restamp, will be pushed as-is)"; Write-Host "  OK prep $name"; continue }
+  }
+  $adapterJson = Join-Path $path "adapter.json"
 
-  # 1. adapter build + checksum (only when flagged)
+  # 1. adapter: version gate (adapter.json), build (only when flagged is_adapter), checksum + node --check
+  if ($kind -eq "adapter") {
+    $aj = (Get-Content -Raw $adapterJson)
+    $av = if ($aj -match '"version"\s*:\s*"([^"]+)"') { $Matches[1] } else { "" }
+    if ($av -ne $ver) { Write-Host "  FAIL: adapter.json version is $av, manifest says $ver"; $fail = $true; continue }
+    if ($r.is_adapter -ne $true) { Write-Host "  note: adapter.json present but is_adapter is not set -- no build; verifying the existing bundle" }
+  }
   if ($r.is_adapter -eq $true) {
     Push-Location $path; & npm run build; $rc = $LASTEXITCODE; Pop-Location
     if ($rc -ne 0) { Write-Host "  FAIL: npm run build"; $fail = $true; continue }
+  }
+  if ($r.is_adapter -eq $true -or $kind -eq "adapter") {
     $b = Join-Path $path "dist/aifs-exec.bundle.js"
-    $actual = (Get-FileHash -Algorithm SHA256 -Path $b).Hash.ToLower()
-    $stamped = (Select-String -Path (Join-Path $path "adapter.json") -Pattern '"exec_bundle_checksum"\s*:\s*"([0-9a-f]{64})"' | Select-Object -First 1).Matches.Groups[1].Value
-    if ($actual -ne $stamped) { Write-Host "  FAIL: checksum mismatch after build ($stamped vs $actual)"; $fail = $true; continue }
-    & node --check $b; if ($LASTEXITCODE -ne 0) { Write-Host "  FAIL: node --check bundle"; $fail = $true; continue }
-    Write-Host "  adapter bundle built + checksum verified"
+    if (-not (Test-Path $b)) {
+      if ($r.is_adapter -eq $true) { Write-Host "  FAIL: $b missing after build"; $fail = $true; continue }
+      Write-Host "  note: no built bundle at $b -- checksum not verified (flag is_adapter to build)"
+    } else {
+      $actual = (Get-FileHash -Algorithm SHA256 -Path $b).Hash.ToLower()
+      # exec_bundle_checksum may be bare hex or "sha256:<hex>"
+      $hit = Select-String -Path $adapterJson -Pattern '"exec_bundle_checksum"\s*:\s*"(sha256:)?([0-9a-fA-F]{64})"' | Select-Object -First 1
+      $stamped = if ($hit) { $hit.Matches[0].Groups[2].Value.ToLower() } else { "" }
+      if (-not $stamped) { Write-Host "  FAIL: adapter.json exec_bundle_checksum missing or not <hex64> / sha256:<hex64>"; $fail = $true; continue }
+      if ($actual -ne $stamped) { Write-Host "  FAIL: checksum mismatch ($stamped vs $actual)"; $fail = $true; continue }
+      & node --check $b; if ($LASTEXITCODE -ne 0) { Write-Host "  FAIL: node --check bundle"; $fail = $true; continue }
+      Write-Host "  adapter bundle checksum verified"
+    }
   }
 
   # 2. restamp api/*-manifest.json collection_version
   $apiDir = Join-Path $path "api"
-  if (Test-Path $apiDir) {
+  if ($kind -eq "collection" -and (Test-Path $apiDir)) {
     Get-ChildItem -Path $apiDir -Filter "*-manifest.json" | ForEach-Object {
       try { $j = Get-Content -Raw $_.FullName | ConvertFrom-Json } catch { return }
       if (($j.PSObject.Properties.Name -contains 'collection_version') -and ("$($j.collection_version)" -ne $ver) -and $ver) {
@@ -68,7 +89,10 @@ foreach ($r in $m.repos) {
     }
   }
 
-  # 3. preflight HARD GATE (after stamping, so Check 2 sees aligned manifests)
+  # 3. preflight HARD GATE (after stamping, so Check 2 sees aligned manifests).
+  # preflight-cli needs collection.json; for an adapter repo the checksum + node --check gate above
+  # is the verification (it is what preflight Check 14 checks).
+  if ($kind -eq "adapter") { Write-Host "  (adapter repo: preflight-cli needs collection.json -- checksum gate above is the verification)"; Write-Host "  OK prep $name"; continue }
   $bashColl = ConvertTo-BashPath ((Resolve-Path $path).Path)
   $pf = & $bash "$bashPreflight" --collection "$bashColl" 2>&1
   if ($LASTEXITCODE -ne 0) {
@@ -81,3 +105,4 @@ foreach ($r in $m.repos) {
 if ($fail) { Write-Host ""; Write-Host "PREP FAILED -- fix the above before push."; exit 1 }
 Write-Host ""; Write-Host "PREP OK -- all repos gated + stamped. Next: release-push.ps1 -Manifest $Manifest"
 exit 0
+# AIFS:FILE-END
