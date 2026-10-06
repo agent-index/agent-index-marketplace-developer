@@ -36,8 +36,11 @@ $bash = Get-GitBash
 if (-not $bash) { Die "could not find bash (Git for Windows provides it). Install Git, or run the .sh prep under bash." }
 $bashPreflight = ConvertTo-BashPath ((Resolve-Path $preflight).Path)
 
-$fail = $false
+# An empty repo list must never reach "PREP OK".
+if (@($m.repos).Count -eq 0) { Die "manifest lists no repos ($Manifest) -- nothing to prep" }
+$fail = $false; $nPrepped = 0
 foreach ($r in $m.repos) {
+  $nPrepped++
   $name = "$($r.name)"; $path = "$($r.path)"; $ver = "$($r.version)"
   Write-Host "== prep: $name v$ver =="
   if (-not (Test-Path $path)) { Write-Host "  FAIL: repo path missing: $path"; $fail = $true; continue }
@@ -103,6 +106,7 @@ foreach ($r in $m.repos) {
   Write-Host "  OK prep $name"
 }
 if ($fail) { Write-Host ""; Write-Host "PREP FAILED -- fix the above before push."; exit 1 }
-Write-Host ""; Write-Host "PREP OK -- all repos gated + stamped. Next: release-push.ps1 -Manifest $Manifest"
+if ($nPrepped -eq 0) { Die "no repos were prepped -- refusing to report PREP OK" }
+Write-Host ""; Write-Host "PREP OK -- $nPrepped repo(s) gated + stamped. Next: release-push.ps1 -Manifest $Manifest"
 exit 0
 # AIFS:FILE-END

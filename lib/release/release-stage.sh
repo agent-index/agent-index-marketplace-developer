@@ -42,7 +42,9 @@ confirm(){ if [ $YES -eq 1 ]; then echo "$1 [y/N] y (--yes)"; return 0; fi; loca
 [ -n "$M" ] && [ -f "$M" ] || die "usage: release-stage.sh <manifest.json> --channel <name> [--skip-preflight] [--yes] [--stay-on-channel]"
 [ -n "$CH" ] || die "--channel <name> is required"
 [[ "$CH" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]] || die "invalid channel name '$CH' (lowercase letters, digits, '-'; must start with a letter/digit; max 40 chars)"
-command -v python3 >/dev/null || die "python3 required"
+# shellcheck source=_python.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_python.sh"   # working python3 (not the Windows Store stub)
+M="$(py_path "$M")"
 command -v git >/dev/null || die "git required"
 BR="channel/$CH"
 PREFLIGHT="$SELF/../preflight-cli.sh"

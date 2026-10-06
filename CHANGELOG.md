@@ -34,6 +34,11 @@
 - **`release-push --tag-only` / `-TagOnly`** now version-checks adapters (`adapter.json` at the merged commit) and catalog repos (each catalog entry that lists another repo in the manifest must carry that repo's manifest version), not only `collection.json`.
 - `api/release.md`: the branch-aware section was labelled "release 1.2.0"; it is "developer 1.13.0".
 
+### Fixed — release tooling on Windows
+- **`release-prep` no longer reports `PREP OK` after checking nothing.** On Windows, `python3` is often the Microsoft Store alias stub: `command -v python3` succeeds, but running it prints "Python was not found" and outputs nothing. `release-prep.sh` read that as an empty repo list, skipped every gate, and printed `PREP OK` (hit on 2026-10-06 shipping bug-reports 1.4.0; `release-push` caught it as "push_order is empty").
+  - New `lib/release/_python.sh`, sourced by `release-{prep,push,stage}.sh`: resolves a Python 3 that actually **runs** (`python3`, then `py -3`, then `python`) and fails with install guidance if none does. It strips the CR that Windows Python writes to stdout (it corrupted repo names read back by the scripts) and converts the manifest path to `C:/...` form so Windows Python can open it.
+  - `release-prep.sh` / `.ps1` refuse an empty repo list and count what they prepped: `PREP OK -- N repo(s) gated + stamped`, and a run that prepped nothing fails instead.
+
 ## [1.13.0] — 2026-09-30 — release-push tags only merged commits
 
 ### Changed

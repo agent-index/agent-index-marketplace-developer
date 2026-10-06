@@ -18,7 +18,9 @@ TAG_ONLY=0; [ "${2:-}" = "--tag-only" ] && TAG_ONLY=1
 die(){ echo "FATAL: $*"; exit 2; }
 confirm(){ read -r -p "$1 [y/N] " a; [ "$a" = "y" ] || [ "$a" = "Y" ]; }
 [ -n "$M" ] && [ -f "$M" ] || die "usage: release-push.sh <manifest.json>"
-command -v python3 >/dev/null || die "python3 required"
+# shellcheck source=_python.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_python.sh"   # working python3 (not the Windows Store stub)
+M="$(py_path "$M")"
 command -v git >/dev/null || die "git required"
 
 TODAY=$(date +%F)

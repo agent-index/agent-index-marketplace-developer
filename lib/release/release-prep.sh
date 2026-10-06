@@ -8,7 +8,9 @@ set -u
 M="${1:-}"; SELF="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 die(){ echo "FATAL: $*"; exit 2; }
 [ -n "$M" ] && [ -f "$M" ] || die "usage: release-prep.sh <manifest.json>"
-command -v python3 >/dev/null || die "python3 required"
+# shellcheck source=_python.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_python.sh"   # working python3 (not the Windows Store stub)
+M="$(py_path "$M")"
 PREFLIGHT="$SELF/../preflight-cli.sh"
 [ -f "$PREFLIGHT" ] || die "preflight-cli.sh not found at $PREFLIGHT"
 
@@ -19,9 +21,12 @@ for r in m.get('repos',[]):
     print('%s\t%s\t%s\t%s\t%s'%(r.get('name',''),r.get('path',''),r.get('version',''),
         str(r.get('is_adapter',False)).lower(),str(r.get('in_listings',False)).lower()))
 ")
-fail=0
+# An empty repo list must never reach "PREP OK" (it did when python3 was the Windows Store stub).
+[ -n "$(printf '%s' "$rows" | tr -d '[:space:]')" ] || die "manifest lists no repos ($M) -- nothing to prep. If the manifest has repos, Python failed to read it."
+fail=0; n_prepped=0
 while IFS=$'\t' read -r name path ver is_adapter in_listings; do
   [ -n "$name" ] || continue
+  n_prepped=$((n_prepped+1))
   echo "== prep: $name v$ver =="
   [ -d "$path" ] || { echo "  FAIL: repo path missing: $path"; fail=1; continue; }
   kind=collection
@@ -55,7 +60,7 @@ while IFS=$'\t' read -r name path ver is_adapter in_listings; do
   fi
   # 2. restamp api/*-manifest.json collection_version to $ver
   if [ "$kind" = "collection" ] && [ -d "$path/api" ]; then
-    python3 - "$path" "$ver" <<'PY'
+    python3 - "$(py_path "$path")" "$ver" <<'PY'
 import json,glob,sys,os
 path,ver=sys.argv[1:3]
 for f in glob.glob(os.path.join(path,'api','*-manifest.json')):
@@ -79,6 +84,7 @@ PY
   echo "  OK prep $name"
 done <<< "$rows"
 [ $fail -eq 0 ] || { echo ""; echo "PREP FAILED -- fix the above before push."; exit 1; }
-echo ""; echo "PREP OK -- all repos gated + stamped. Next: bash release-push.sh $M"
+[ $n_prepped -gt 0 ] || die "no repos were prepped -- refusing to report PREP OK"
+echo ""; echo "PREP OK -- $n_prepped repo(s) gated + stamped. Next: bash release-push.sh $M"
 exit 0
 # AIFS:FILE-END

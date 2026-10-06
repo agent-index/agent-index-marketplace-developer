@@ -98,3 +98,5 @@ bash lib/release/release-push.sh .agent-index/release-c150.json
 bash lib/release/release-push.sh .agent-index/release-c150.json --tag-only   # after the PR merges
 bash lib/release/release-stage.sh .agent-index/release-c150.json --channel dev-1   # stage mode
 ```
+
+**Python (bash scripts).** The `.sh` scripts source `_python.sh`, which finds a Python 3 that actually runs (`python3`, `py -3`, `python`) — on Windows `python3` is often the Store alias stub. On Windows the `.ps1` scripts need no Python at all.
