@@ -104,6 +104,37 @@ for n in "${ORDER[@]}"; do
 done
 [ $gate_fail -eq 0 ] || die "stage gates failed -- nothing was changed"
 
+# ---------------- CANDIDATE VIEW ----------------
+# Preflight reads each repo's working tree, including sibling repos (e.g. core is checked against the
+# listings catalog). A repo that is already staged and has nothing new is usually back on its default
+# branch (cleanup), so its working tree is the RELEASED content, not the candidate. Check those repos out
+# on the channel for the gate; they are switched back afterwards.
+declare -A VIEWED RESTORED
+restore_views(){
+  local k; for k in "${!VIEWED[@]}"; do
+    [ -n "${RESTORED[$k]:-}" ] && continue
+    git -C "${PATHS[$k]}" checkout -q "${VIEWED[$k]}" 2>/dev/null; RESTORED[$k]=1
+  done
+}
+echo ""; echo "=================== CANDIDATE VIEW ==================="
+for n in "${ORDER[@]}"; do
+  p="${PATHS[$n]}"; B=$(git -C "$p" symbolic-ref --short -q HEAD)
+  [ "$B" = "$BR" ] && continue
+  [ -n "$(git -C "$p" status --porcelain)" ] && continue          # has new changes: checked as-is
+  rs=$(git -C "$p" ls-remote --heads origin "refs/heads/$BR" 2>/dev/null | awk '{print $1}' | head -n1)
+  [ -n "$rs" ] || continue                                         # nothing staged yet
+  git -C "$p" fetch -q origin "+refs/heads/$BR:refs/remotes/origin/$BR" 2>/dev/null
+  git -C "$p" merge-base --is-ancestor "$rs" HEAD 2>/dev/null && continue   # already contained in this branch
+  ok=0
+  if git -C "$p" show-ref --verify --quiet "refs/heads/$BR"; then
+    if git -C "$p" merge-base --is-ancestor "$rs" "refs/heads/$BR" 2>/dev/null; then git -C "$p" checkout -q "$BR" 2>/dev/null && ok=1
+    elif git -C "$p" merge-base --is-ancestor "refs/heads/$BR" "$rs" 2>/dev/null; then git -C "$p" checkout -q -B "$BR" "refs/remotes/origin/$BR" 2>/dev/null && ok=1
+    else echo "  WARNING $n: local $BR and origin/$BR have diverged -- checked on '$B' instead (preflight may not reflect the candidate)"; fi
+  else git -C "$p" checkout -q -B "$BR" "refs/remotes/origin/$BR" 2>/dev/null && ok=1; fi
+  [ $ok -eq 1 ] && { VIEWED[$n]="$B"; echo "  $n: already staged, nothing new -- checked on $BR (back to $B afterwards)"; }
+done
+[ ${#VIEWED[@]} -eq 0 ] && echo "  (every repo is checked as it is)"
+
 if [ $SKIP_PF -eq 1 ]; then
   echo ""
   echo "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -128,7 +159,7 @@ else
     fi
     rm -f /tmp/pf.$$
   done
-  [ $pf_fail -eq 0 ] || die "preflight gate failed -- nothing was changed (fix the errors, or --skip-preflight for an emergency)"
+  [ $pf_fail -eq 0 ] || { restore_views; die "preflight gate failed -- nothing was changed (fix the errors, or --skip-preflight for an emergency)"; }
 fi
 
 # ---------------- STAGE ----------------
@@ -141,11 +172,19 @@ restore_branch(){ # $1=name $2=path $3=branch
 }
 fail_repo(){ # $1=name $2=path $3=branch $4=msg
   echo "  $1 is left on $BR (its changes are committed there). To go back: git -C \"$2\" checkout $3"
+  restore_views
   die "$4"
 }
 for n in "${ORDER[@]}"; do
   p="${PATHS[$n]}"; v="${VERS[$n]}"
   echo ""; echo "----- $n v$v ($p) -----"
+  if [ -n "${VIEWED[$n]:-}" ]; then
+    echo "  origin/$BR already holds the staged candidate for $n and there is nothing new. Left as is."
+    unchanged+=("$n")
+    [ $STAY -eq 1 ] || restore_branch "$n" "$p" "${VIEWED[$n]}"
+    RESTORED[$n]=1
+    continue
+  fi
   B=$(git -C "$p" symbolic-ref --short -q HEAD)
   db=$(default_branch "$p")
   if [ "$B" = "$BR" ]; then back="$db"; else back="$B"; fi

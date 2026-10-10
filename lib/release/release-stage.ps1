@@ -26,6 +26,7 @@ param([Parameter(Mandatory=$true)][string]$Manifest,
       [Parameter(Mandatory=$true)][string]$Channel,
       [switch]$SkipPreflight, [switch]$Yes, [switch]$StayOnChannel)
 $ErrorActionPreference = "Continue"
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}  # preflight prints UTF-8 symbols
 function Die([string]$m){ Write-Host "FATAL: $m"; exit 2 }
 function Confirm([string]$m){
   if ($Yes) { Write-Host "$m [y/N] y (-Yes)"; return $true }
@@ -113,6 +114,47 @@ foreach ($n in $order) {
 }
 if ($gateFail) { Die "stage gates failed -- nothing was changed" }
 
+# ---------------- CANDIDATE VIEW ----------------
+# Preflight reads each repo's working tree, including sibling repos (e.g. core is checked against the
+# listings catalog). A repo that is already staged and has nothing new is usually back on its default
+# branch (cleanup), so its working tree is the RELEASED content, not the candidate. Check those repos out
+# on the channel for the gate; they are switched back afterwards.
+$viewed = @{}; $restoredViews = @{}
+function Restore-Views {
+  foreach ($k in @($script:viewed.Keys)) {
+    if ($script:restoredViews.ContainsKey($k)) { continue }
+    & git -C $paths[$k] checkout -q $script:viewed[$k] 2>$null
+    $script:restoredViews[$k] = $true
+  }
+}
+Write-Host ""; Write-Host "=================== CANDIDATE VIEW ==================="
+foreach ($n in $order) {
+  $p = $paths[$n]
+  $B = (& git -C $p symbolic-ref --short -q HEAD 2>$null)
+  if ($B -ceq $br) { continue }
+  if (& git -C $p status --porcelain) { continue }   # has new changes: checked as-is
+  $ls = (& git -C $p ls-remote --heads origin "refs/heads/$br" 2>$null | Select-Object -First 1)
+  if (-not $ls) { continue }                          # nothing staged yet
+  $rs = ("$ls" -split '\s+')[0]
+  & git -C $p fetch -q origin "+refs/heads/${br}:refs/remotes/origin/$br" 2>$null
+  & git -C $p merge-base --is-ancestor $rs HEAD 2>$null
+  if ($LASTEXITCODE -eq 0) { continue }               # channel already contained in this branch
+  & git -C $p show-ref --verify --quiet "refs/heads/$br" 2>$null
+  $hasLocal = ($LASTEXITCODE -eq 0)
+  $ok = $false
+  if ($hasLocal) {
+    & git -C $p merge-base --is-ancestor $rs "refs/heads/$br" 2>$null
+    if ($LASTEXITCODE -eq 0) { & git -C $p checkout -q $br 2>$null; $ok = ($LASTEXITCODE -eq 0) }
+    else {
+      & git -C $p merge-base --is-ancestor "refs/heads/$br" $rs 2>$null
+      if ($LASTEXITCODE -eq 0) { & git -C $p checkout -q -B $br "refs/remotes/origin/$br" 2>$null; $ok = ($LASTEXITCODE -eq 0) }
+      else { Write-Host "  WARNING ${n}: local $br and origin/$br have diverged -- checked on '$B' instead (preflight may not reflect the candidate)" }
+    }
+  } else { & git -C $p checkout -q -B $br "refs/remotes/origin/$br" 2>$null; $ok = ($LASTEXITCODE -eq 0) }
+  if ($ok) { $viewed[$n] = $B; Write-Host "  ${n}: already staged, nothing new -- checked on $br (back to $B afterwards)" }
+}
+if ($viewed.Count -eq 0) { Write-Host "  (every repo is checked as it is)" }
+
 if ($SkipPreflight) {
   Write-Host ""
   Write-Host "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!"
@@ -139,7 +181,7 @@ if ($SkipPreflight) {
       $pfFail = $true
     } else { Write-Host "  ok ${n}: preflight passed" }
   }
-  if ($pfFail) { Die "preflight gate failed -- nothing was changed (fix the errors, or -SkipPreflight for an emergency)" }
+  if ($pfFail) { Restore-Views; Die "preflight gate failed -- nothing was changed (fix the errors, or -SkipPreflight for an emergency)" }
 }
 
 # ---------------- STAGE ----------------
@@ -153,11 +195,19 @@ function Restore-Branch([string]$n, [string]$p, [string]$to) {
 }
 function Fail-Repo([string]$n, [string]$p, [string]$to, [string]$msg) {
   Write-Host "  $n is left on $br (its changes are committed there). To go back: git -C `"$p`" checkout $to"
+  Restore-Views
   Die $msg
 }
 foreach ($n in $order) {
   $p = $paths[$n]; $v = $vers[$n]
   Write-Host ""; Write-Host "----- $n v$v ($p) -----"
+  if ($viewed.ContainsKey($n)) {
+    Write-Host "  origin/$br already holds the staged candidate for $n and there is nothing new. Left as is."
+    $unchanged += $n
+    if (-not $StayOnChannel) { Restore-Branch $n $p $viewed[$n] }
+    $restoredViews[$n] = $true
+    continue
+  }
   $B = (& git -C $p symbolic-ref --short -q HEAD 2>$null)
   $db = Get-DefaultBranch $p
   $back = if ($B -ceq $br) { $db } else { $B }

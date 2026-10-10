@@ -67,6 +67,9 @@ emergency; it prints a loud warning). Then, per repo in `push_order` (catalogs l
     `git stash; git checkout channel/<name>; git stash pop`, then re-run.
     `--yes` / `-Yes` never replaces.
 - **No changes, nothing staged yet:** the branch is still pushed at `HEAD`, so the channel includes the repo.
+- **Candidate view (before preflight):** repos that are already staged and have nothing new are
+  checked out on `channel/<name>` for the preflight gate, so preflight (which reads sibling repos)
+  sees the whole candidate, not released content. They are switched back afterwards.
 - **Cleanup:** after each repo is pushed it is checked out again on the branch it started on (the
   default branch if it started on the channel). The staged commits live on `channel/<name>`;
   default branches are left as they were. `--stay-on-channel` / `-StayOnChannel` skips this. If a

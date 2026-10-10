@@ -18,6 +18,7 @@
 - **`preflight`** — the `inherit:false` check and the grant-gating warning are reworded for the procedure.
 
 ### Added — distribution channels (stage mode)
+- `release-stage` checks the candidate, not the released code: before the preflight gate, every repo that is already staged and has nothing new is checked out on `channel/<name>` (and switched back afterwards, also when the gate fails). Preflight reads sibling repos (core is checked against the listings catalog), so after cleanup put those repos back on their default branch, the gate was comparing the candidate with released content and failing.
 - `release-stage` cleans up: each repo is checked out again on the branch it started on after its push (`--stay-on-channel` / `-StayOnChannel` keeps it on the channel). Because repos now return to the default branch, a re-run from that branch no longer replaces a channel that holds staged commits: an unchanged repo is left as is, a changed one needs a typed `REPLACE`, and the script shows how to add the changes to the candidate instead.
 - `release-stage` warns when `agent-index-core` isn't in the set (the test org's clone tooling would fall back to a core without channel support). release-checklist S1 says the same.
 - **`release` 1.2.0 → 1.3.0** — new stage mode: stage → test → promote. The Step 1 interview asks "stage to a channel, or release?"; Step 4 surfaces the stage invocation and the promote steps.
