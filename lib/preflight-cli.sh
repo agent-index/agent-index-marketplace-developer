@@ -618,10 +618,10 @@ for d in api setup internal upgrade templates; do
     [[ -d "$COLL/$d" ]] || continue
     while IFS= read -r -d '' f; do
         rel="${f#$COLL/}"
-        # The procedure itself, and core's deprecated helper skill (removed in core 4.0.0), are exempt.
+        # The procedure itself, and core's 3-to-4 upgrade guide (it describes the helper's removal), are exempt.
         if [[ "$COLL_NAME" == "agent-index-core" ]]; then
             case "$rel" in
-                internal/permission-changes.md|api/permission-change-helper.md|api/permission-change-helper-setup.md) continue ;;
+                internal/permission-changes.md|upgrade/3-to-4.md) continue ;;
             esac
         fi
         # This check's own definition quotes the patterns it looks for.

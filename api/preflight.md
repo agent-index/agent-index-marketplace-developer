@@ -358,7 +358,7 @@ Scope is root-level `*.md` documents only: `standards.md`, `ROADMAP.md`, `README
 
 **Permission changes only through the core procedure (added in preflight v1.10.0 — core 3.32.0, standards.md § "Permission changes: list, confirm, apply, verify"):**
 
-Scope: `*.md` under `api/`, `setup/`, `internal/`, `upgrade/`, `templates/`. Exempt: in `agent-index-core`, the procedure itself (`internal/permission-changes.md`) and the deprecated `api/permission-change-helper*.md`; in this collection, `api/preflight.md` (it quotes the patterns).
+Scope: `*.md` under `api/`, `setup/`, `internal/`, `upgrade/`, `templates/`. Exempt: in `agent-index-core`, the procedure itself (`internal/permission-changes.md`) and `upgrade/3-to-4.md` (it describes the removal); in this collection, `api/preflight.md` (it quotes the patterns). Core 4.0.0 removed the helper, so a reference elsewhere points at something that no longer exists.
 
 - [ ] **ERROR** on any *invocation* of a permission-modifying op: `aifs_share(` / `aifs_unshare(` / `aifs_transfer_ownership(`, or `aifs-exec.sh aifs_share|aifs_unshare|aifs_transfer_ownership`. The fix is to pass the change to `/agent-index-core/internal/permission-changes.md`. Prose that only names an op ("never call `aifs_share`") is not an invocation.
 - [ ] **WARNING** on references to the retired flow: `permission-change-helper`, `build-permission-spec`, `agent-index://`. One warning per file, listing line numbers.

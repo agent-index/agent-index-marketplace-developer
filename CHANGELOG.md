@@ -4,6 +4,9 @@
 
 **MINOR — pairs with agent-index-core 3.32.0.** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).
 
+### Changed — core 4.0.0 (permission helper removed)
+- **preflight Check 17** no longer exempts core's `api/permission-change-helper*.md` (deleted in core 4.0.0); core's `upgrade/3-to-4.md` is exempt instead, because it describes the removal.
+
 ### Added
 - **Preflight Check 17** (`preflight` 1.9.0 → 1.10.0; `lib/preflight-cli.sh`): permission changes only through core `internal/permission-changes.md`.
   - **ERROR** on any invocation of `aifs_share` / `aifs_unshare` / `aifs_transfer_ownership` in capability files.
