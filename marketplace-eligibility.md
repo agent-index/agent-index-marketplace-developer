@@ -544,15 +544,18 @@ For the full capability provider specification including runtime resolution, ins
 
 ## Release Gate
 
-**The gate that runs is `lib/preflight-cli.sh`.** `lib/release/release-prep.sh` (and `.ps1`) runs it once per repo, after restamping manifests, as a hard gate: any error aborts that repo's prep. Nothing in the release scripts runs `@ai:preflight`; it is an agent task, and a script cannot invoke it.
+**Two checkers, two jobs. Both are required where they apply.**
 
-**`preflight-cli.sh` is not equivalent to `@ai:preflight`, and neither contains the other.** (Compared at developer 1.13.0.)
+- **`lib/preflight-cli.sh` is the hard gate on every release.** `lib/release/release-prep.sh` (and `.ps1`) runs it once per repo, after restamping manifests: any error aborts that repo's prep.
+- **`@ai:preflight` at `marketplace` strictness is also required for marketplace listing:** on a collection's first listing, and on any release that changes a capability's definition or setup file (`api/{name}.md`, `api/{name}-setup.md`). A patch release that changes neither does not need it. The `collection_version` restamp that every release applies to `api/*-manifest.json` does not count as a change. `@ai:preflight` is an agent task and no release script can run it, so whoever cuts the release runs it and records the result.
+
+**Why one cannot stand in for the other: `preflight-cli.sh` is not equivalent to `@ai:preflight`, and neither contains the other.** (Compared at developer 1.13.0.)
 
 - **Only `@ai:preflight` checks:** file completeness, including a `-setup.md` for every API member and orphaned files (Step 2); frontmatter validation by type (Step 3); cross-reference integrity (Step 5); setup template quality — provenance annotations and required sections (Step 6); most content-quality checks — README completeness and freshness, CLAUDE.md alias coverage, CHANGELOG format, naming, workflow and directive quality, storage-access clarity, tutorial skill, authoring-note remnants (Step 7); access-model consistency (Step 7.5); token efficiency (Step 8, notes only); and marketplace-specific checks (Step 9).
 - **Only `preflight-cli.sh` checks:** JSON brace balance (Check 5), the JS-integrity heuristic (Check 7), the `node --check` half of the adapter build check (Check 14), and trailing newlines (Check 15).
 - **Both check:** version consistency (CLI Checks 1–3, 9, 12, 13; task Step 4), shell-script LF line endings (Check 4), `directory_version` movement (Check 10), `inherit:false` against the adapter contract (Check 8), the file-integrity sentinel (Check 11), and spec-document currency headers (Check 16).
 
-**What this means in practice.** A clean `preflight-cli.sh` run does not show that a collection would also pass `@ai:preflight`. The CLI cannot see a missing setup file, incomplete frontmatter, or a setup template without its required sections. Bug `20260902-68dff8bf-145236-c1ae`: core v3.28.2 shipped with seven such errors while the CLI gate reported zero.
+**What this means in practice.** A clean `preflight-cli.sh` run does not show that a collection would also pass `@ai:preflight`. The CLI cannot see a missing setup file, incomplete frontmatter, or a setup template without its required sections. Bug `20260902-68dff8bf-145236-c1ae`: core v3.28.2 shipped with seven such errors while the CLI gate reported zero. Requiring both, each where it applies, is what closes that bug.
 
 ---
 
@@ -563,7 +566,7 @@ To submit a collection to the marketplace:
 1. Ensure the collection meets every requirement in this document, conforms to the file format standards it names (§ "Skill and Task File Requirements"), and passes the release gate (§ "Release Gate")
 2. Host the collection in a publicly accessible Git repository
 3. Open an issue in the agent-index resource listings repository at `https://github.com/agent-index/agent-index-resource-listings` with the collection name, repository URL, and a brief description
-4. The agent-index team will review for standards compliance and add the collection to `directory.json` upon approval
+4. The agent-index team will review for standards compliance and add the collection to `marketplace-directory.json` upon approval
 
 ---
 
