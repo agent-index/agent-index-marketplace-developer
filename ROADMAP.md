@@ -1,7 +1,7 @@
 # Developer Collection — Roadmap
 
-Current version: 1.13.0
-Last updated: 2026-09-30
+Current version: 1.14.0
+Last updated: 2026-10-02
 
 ---
 

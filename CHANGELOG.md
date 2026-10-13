@@ -1,5 +1,54 @@
 ﻿# Developer Collection — Changelog
 
+## [1.14.0] — 2026-10-01 — Permission changes through the core procedure; new preflight Check 17
+
+**MINOR — pairs with agent-index-core 3.32.0.** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).
+
+### Changed — core 4.0.0 (permission helper removed)
+- **preflight Check 17** no longer exempts core's `api/permission-change-helper*.md` (deleted in core 4.0.0); core's `upgrade/3-to-4.md` is exempt instead, because it describes the removal.
+
+### Added
+- **Preflight Check 17** (`preflight` 1.9.0 → 1.10.0; `lib/preflight-cli.sh`): permission changes only through core `internal/permission-changes.md`.
+  - **ERROR** on any invocation of `aifs_share` / `aifs_unshare` / `aifs_transfer_ownership` in capability files.
+  - **WARNING** on leftover `permission-change-helper` / `build-permission-spec` / `agent-index://` references.
+  - **WARNING** on a `collaborative-acls.json` using the legacy `grants` key.
+  - This replaces the "preflight flags direct calls" check that standards.md described but no version implemented.
+  - Invocation detection ignores backticked prose mentions such as `` `aifs_unshare()` `` and catches a quoted executor argument (`aifs-exec.sh "aifs_share" …`).
+
+### Changed
+- **`develop` 1.5.0 → 1.6.0** — access-model guidance: owners confirm grants through the core procedure. The verified-outcome gate is keyed on the procedure's row states. The core-edit constraint now allows an explicit admin authorization, recorded in the design record. New **sharing callers** rule set: declared sources only, any recipient (outside-org flagged), choices before the table, no access record before the gate, no destructive state from declined/cancelled rows, recompute after removals, and `all_or_nothing` only for sets that are meaningless when half-applied. The same rule set is added to core's `collection-authoring-guide.md`.
+- **`developer-guide` 1.3.0 → 1.4.0** — the sharing answer describes the procedure. The Level-3 reference implementation is now core `lib/permission-changes/permission-changes.js` (replacing `build-permission-spec.js`).
+- **`preflight`** — the `inherit:false` check and the grant-gating warning are reworded for the procedure.
+
+### Added — distribution channels (stage mode)
+- `release-stage` checks the candidate, not the released code: before the preflight gate, every repo that is already staged and has nothing new is checked out on `channel/<name>` (and switched back afterwards, also when the gate fails). Preflight reads sibling repos (core is checked against the listings catalog), so after cleanup put those repos back on their default branch, the gate was comparing the candidate with released content and failing.
+- `release-stage` cleans up: each repo is checked out again on the branch it started on after its push (`--stay-on-channel` / `-StayOnChannel` keeps it on the channel). Because repos now return to the default branch, a re-run from that branch no longer replaces a channel that holds staged commits: an unchanged repo is left as is, a changed one needs a typed `REPLACE`, and the script shows how to add the changes to the candidate instead.
+- `release-stage` warns when `agent-index-core` isn't in the set (the test org's clone tooling would fall back to a core without channel support). release-checklist S1 says the same.
+- **`release` 1.2.0 → 1.3.0** — new stage mode: stage → test → promote. The Step 1 interview asks "stage to a channel, or release?"; Step 4 surfaces the stage invocation and the promote steps.
+- **`lib/release/release-stage.{sh,ps1}`** (new) — same manifest as `release-push`, plus `--channel <name>` / `-Channel <name>`. Pushes every repo in `push_order` to `channel/<name>` so a test org on that distribution channel can install the candidate before anything is tagged.
+  - Gates before any write: channel name `^[a-z0-9][a-z0-9-]{0,39}$`; no `.git/index.lock` (refuses, never deletes); an `origin` remote and a checked-out branch; the same preflight invocation `release-prep` uses (`--skip-preflight` prints a loud warning).
+  - Already on `channel/<name>`: commit `stage(<name>): <repo> v<version>` and fast-forward push, no force. On any other branch: `git checkout -B channel/<name>` (working changes kept), commit, `push --force-with-lease`, after saying the existing `origin/channel/<name>` will be **replaced**.
+  - Repos with no changes are still pushed at `HEAD`. Never tags; never pushes the default branch. Prints the test-org handoff and the promote steps (PR → merge → `release-push --tag-only` → `git checkout <default> && git pull`).
+  - `--yes` / `-Yes` answers every prompt; for tests/CI only.
+- `lib/release/README.md` and `release-checklist.md` gain the stage path.
+
+### Fixed
+- **Preflight Check 14** compared `exec_bundle_checksum` including its `sha256:` prefix against a bare hash, which would report a false mismatch on every adapter. The prefix is now stripped before comparing.
+- **`release-prep.{sh,ps1}`** no longer skips adapter repos: a repo with `adapter.json` and no `collection.json` is gated on `adapter.json` `version` and on the bundle checksum + `node --check`. `exec_bundle_checksum` is accepted as bare hex or `sha256:<hex>` (the form the adapters actually use; the old pattern matched only bare hex).
+- **`release-push --tag-only` / `-TagOnly`** now version-checks adapters (`adapter.json` at the merged commit) and catalog repos (each catalog entry that lists another repo in the manifest must carry that repo's manifest version), not only `collection.json`.
+- `api/release.md`: the branch-aware section was labelled "release 1.2.0"; it is "developer 1.13.0".
+
+### Fixed — release tooling on Windows
+- **`release-prep` no longer reports `PREP OK` after checking nothing.** On Windows, `python3` is often the Microsoft Store alias stub: `command -v python3` succeeds, but running it prints "Python was not found" and outputs nothing. `release-prep.sh` read that as an empty repo list, skipped every gate, and printed `PREP OK` (hit on 2026-10-06 shipping bug-reports 1.4.0; `release-push` caught it as "push_order is empty").
+  - New `lib/release/_python.sh`, sourced by `release-{prep,push,stage}.sh`: resolves a Python 3 that actually **runs** (`python3`, then `py -3`, then `python`) and fails with install guidance if none does. It strips the CR that Windows Python writes to stdout (it corrupted repo names read back by the scripts) and converts the manifest path to `C:/...` form so Windows Python can open it.
+  - `release-prep.sh` / `.ps1` refuse an empty repo list and count what they prepped: `PREP OK -- N repo(s) gated + stamped`, and a run that prepped nothing fails instead.
+
+### License
+- **Licensed under AGPL-3.0-only with the Agent Index Collection Exception 1.0** (`AGPL-3.0-only WITH LicenseRef-AgentIndex-Collection-Exception-1.0`): the platform is open; collections and storage adapters built on it are their authors' to license (`COLLECTION-EXCEPTION.md`). Earlier releases keep the license they were released with.
+
+### Fixed (release tooling)
+- **`release-push.ps1` stamps the CHANGELOG date byte-safely** (`changelogmojibake`, 4.0 release finding 59). Windows PowerShell's `Get-Content` read a BOM-less UTF-8 CHANGELOG as ANSI and `Set-Content -Encoding utf8` wrote it back with a BOM, turning every em dash into three garbage characters (hit client-intelligence, bug-reports and gdrive during the 4.0 promote; repaired before merge). It now reads and writes the bytes as UTF-8 and keeps the file's BOM (or its absence).
+
 ## [1.13.0] — 2026-09-30 — release-push tags only merged commits
 
 ### Changed

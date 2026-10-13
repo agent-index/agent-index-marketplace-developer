@@ -14,6 +14,14 @@ The development lifecycle (design → tech design → test plan → dev → test
 6. **Preflight clean** — `@ai:preflight` (canonical) or `lib/preflight-cli.sh --collection <repo>` reports zero ERRORS for every collection in the release. Errors block; warnings are a judgment call.
 7. **Adapter bundle fresh** (adapter releases) — `dist/<bundle>` exists and its sha256 matches `adapter.json` `exec_bundle_checksum`, computed on the **git-blob LF bytes** (Windows checkout converts LF→CRLF and breaks the SHA).
 
+## Optional: stage to a channel first (test before tagging — developer 1.14.0)
+
+Use this when a test org should install the candidate before it is tagged. Run it after the pre-push gates above and before push + tag.
+
+- **S1. Stage** — `release-stage --channel <name>` (same manifest) runs preflight, then pushes every repo in `push_order` to `channel/<name>` (catalogs last). It never tags and never pushes the default branch. From the channel branch it fast-forwards. From any other branch it fast-forwards when the channel is absent or already contained in it; when the channel holds staged commits that branch lacks, it leaves an unchanged repo as is and refuses a changed one unless you type `REPLACE`. Repos with nothing staged yet are pushed at `HEAD`. Afterwards each repo is checked out again on the branch it started on (cleanup; `-StayOnChannel` skips it). Include `agent-index-core` in every channel set until core 3.32.0 (the first core with channel support) is released; otherwise the test org's clone tooling falls back to the released core and reverts the channel on the next refresh.
+- **S2. Test** — on the test org's admin install: create the org with the channel, or set "Distribution channel" in `edit-org`; refresh clones; "publish our org updates". To fix: `git checkout channel/<name>` in the affected repos, edit, re-stage until it passes.
+- **S3. Promote** — per repo, code repos first and listings last: PR `channel/<name>` → default branch, merge, then `release-push --tag-only` (it checks `collection.json` / `adapter.json` / catalog entry versions at the merged commit before tagging). Then `git checkout <default> && git pull && git branch -D channel/<name>`. Continue at step 11 if the release publishes `/shared/dist/`.
+
 ## Push + tag (generate with `@ai:release`; runs natively)
 
 8. **Push order is dependency order** — adapter → core → marketplace → collections → **`agent-index-resource-listings` LAST**. The broadcast layer must never reference a version whose code/binary isn't live.
