@@ -43,6 +43,9 @@
   - New `lib/release/_python.sh`, sourced by `release-{prep,push,stage}.sh`: resolves a Python 3 that actually **runs** (`python3`, then `py -3`, then `python`) and fails with install guidance if none does. It strips the CR that Windows Python writes to stdout (it corrupted repo names read back by the scripts) and converts the manifest path to `C:/...` form so Windows Python can open it.
   - `release-prep.sh` / `.ps1` refuse an empty repo list and count what they prepped: `PREP OK -- N repo(s) gated + stamped`, and a run that prepped nothing fails instead.
 
+### License
+- **Licensed under AGPL-3.0-only with the Agent Index Collection Exception 1.0** (`AGPL-3.0-only WITH LicenseRef-AgentIndex-Collection-Exception-1.0`): the platform is open; collections and storage adapters built on it are their authors' to license (`COLLECTION-EXCEPTION.md`). Earlier releases keep the license they were released with.
+
 ## [1.13.0] — 2026-09-30 — release-push tags only merged commits
 
 ### Changed
