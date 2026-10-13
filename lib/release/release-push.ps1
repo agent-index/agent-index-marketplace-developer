@@ -173,7 +173,11 @@ foreach ($n in $order) {
   Write-Host ""; Write-Host "----- pushing $n v$v -----"
   $cl = Join-Path $p "CHANGELOG.md"
   if ((Test-Path $cl) -and (Select-String -Path $cl -Pattern '<RELEASE_DATE>' -Quiet)) {
-    (Get-Content -Raw $cl) -replace '<RELEASE_DATE>', $today | Set-Content -Path $cl -Encoding utf8; Write-Host "  stamped CHANGELOG date -> $today"
+    # Byte-safe UTF-8 (developer 1.14.0, finding 59): Windows PowerShell's Get-Content reads a BOM-less
+    # UTF-8 file as ANSI, so the old one-liner turned every em dash into mojibake. Keep the BOM as found.
+    $clb = [System.IO.File]::ReadAllBytes($cl); $clBom = ($clb.Length -ge 3 -and $clb[0] -eq 0xEF -and $clb[1] -eq 0xBB -and $clb[2] -eq 0xBF)
+    $clOff = $(if ($clBom) { 3 } else { 0 }); $clTxt = (New-Object System.Text.UTF8Encoding($false)).GetString($clb, $clOff, $clb.Length - $clOff)
+    [System.IO.File]::WriteAllText($cl, $clTxt.Replace('<RELEASE_DATE>', $today), (New-Object System.Text.UTF8Encoding($clBom))); Write-Host "  stamped CHANGELOG date -> $today"
   }
   & git -C $p add -A
   & git -C $p diff --cached --quiet; $hasStaged = ($LASTEXITCODE -ne 0)

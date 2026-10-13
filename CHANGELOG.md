@@ -46,6 +46,9 @@
 ### License
 - **Licensed under AGPL-3.0-only with the Agent Index Collection Exception 1.0** (`AGPL-3.0-only WITH LicenseRef-AgentIndex-Collection-Exception-1.0`): the platform is open; collections and storage adapters built on it are their authors' to license (`COLLECTION-EXCEPTION.md`). Earlier releases keep the license they were released with.
 
+### Fixed (release tooling)
+- **`release-push.ps1` stamps the CHANGELOG date byte-safely** (`changelogmojibake`, 4.0 release finding 59). Windows PowerShell's `Get-Content` read a BOM-less UTF-8 CHANGELOG as ANSI and `Set-Content -Encoding utf8` wrote it back with a BOM, turning every em dash into three garbage characters (hit client-intelligence, bug-reports and gdrive during the 4.0 promote; repaired before merge). It now reads and writes the bytes as UTF-8 and keeps the file's BOM (or its absence).
+
 ## [1.13.0] — 2026-09-30 — release-push tags only merged commits
 
 ### Changed
