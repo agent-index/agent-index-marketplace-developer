@@ -73,7 +73,7 @@ All non-trivial development — new collections, major reworks, access-model cha
 5. **Dev** — build to the reviewed designs. Deviations go back through review, not silently into code.
 6. **Test** — execute the test plan, rehearsal environment first where one exists.
 7. **Iterate until bug-free** — findings are filed, fixed, and re-tested; the test plan is amended when reality teaches something new.
-8. **Release** — versioned, changelogged, listings broadcast, preflight-gated, **tagged, and (for backend-distribution orgs) published to `/shared/dist/`.** Generate the push script with the `release` task (`@ai:release`) rather than hand-writing one: it runs preflight as a hard gate, pushes code-repos-first / `agent-index-resource-listings`-last, and commits→pushes→tags each repo at `v<version>` (never moving a published tag — the `clone-script-generator` pins to those tags). After the push, publish `/shared/dist/` so members read the new release from the backend, not GitHub (standards.md § Distribution + § Release procedure). Follow the release-checklist reference for the full ordered gate list.
+8. **Release** — versioned, changelogged, listings broadcast, preflight-gated, **tagged, and (for backend-distribution orgs) published to `/shared/dist/`.** Generate the push script with the `release` task (`@ai:release`) rather than hand-writing one: it runs preflight as a hard gate, pushes code-repos-first / `agent-index-resource-listings`-last, and commits→pushes→tags each repo at `v<version>` (never moving a published tag — the `clone-script-generator` pins to those tags). After the push, publish `/shared/dist/` so members read the new release from the backend, not GitHub (core `admin-distribution.md` § "Distribution: backend-first (Release C — the current model)" and § "Release procedure (admin-side)"). Follow the release-checklist reference for the full ordered gate list.
 9. **Test the release** — post-release validation in a real install as a real (non-admin) member; results recorded.
 
 Each stage produces a reviewable record (design doc, test plan, findings, release record, retro) preserved as a resilient record — the paper trail is part of the deliverable, not overhead. Skipping a stage is a decision the developer makes explicitly, not a default.
@@ -157,7 +157,7 @@ Generate every required file for the collection:
    - `/apps/{script-name}.py` (or `.js`) — Generated scripts for each mechanical workflow step, following authoring guide script conventions (shebang, dependency check, `--dry-run`, structured JSON output, exit codes).
    - `/apps/requirements.txt` (Python) or `/apps/package.json` (Node) — Pinned dependencies.
    - Task workflow steps that call these scripts are written with explicit script invocations, argument mappings, output parsing instructions, and error handling based on exit codes.
-11. **File-integrity sentinel (added in developer 1.6.0 — standards.md § "File-integrity sentinel"):** `collection.json` declares `"file_integrity": "sentinel-v1"`, and every generated file is stamped with its per-format `AIFS:FILE-END` encoding as its last non-whitespace content — Markdown: `<!-- AIFS:FILE-END -->` final line; JSON (including collection.json and every manifest): `"_file_end": "AIFS:FILE-END"` as the last key; shell/Python scripts: `# AIFS:FILE-END`; JS: `// AIFS:FILE-END`. JSONL and binary assets are never stamped. Preflight Check 11 enforces this for declaring collections.
+11. **File-integrity sentinel (added in developer 1.6.0 — `marketplace-eligibility.md` § "File-integrity sentinel (`AIFS:FILE-END`)"):** `collection.json` declares `"file_integrity": "sentinel-v1"`, and every generated file is stamped with its per-format `AIFS:FILE-END` encoding as its last non-whitespace content — Markdown: `<!-- AIFS:FILE-END -->` final line; JSON (including collection.json and every manifest): `"_file_end": "AIFS:FILE-END"` as the last key; shell/Python scripts: `# AIFS:FILE-END`; JS: `// AIFS:FILE-END`. JSONL and binary assets are never stamped. Preflight Check 11 enforces this for declaring collections.
 
 Write all files to the configured `default_output_path` or to a path the developer specifies.
 
@@ -249,7 +249,7 @@ Whichever pattern applies, hold these invariants:
 ### Constraints
 
 - Never modify files outside the collection directory being worked on.
-- Never modify agent-index-core files, standards.md, or the authoring guide — unless an org admin has explicitly authorized core/marketplace changes for the effort at hand. Record that authorization in the effort's design record (precedent: `retire-permission-helper-solution-design.md`, 2026-10-01).
+- Never modify agent-index-core files, `marketplace-eligibility.md`, or the authoring guide — unless an org admin has explicitly authorized core/marketplace changes for the effort at hand. Record that authorization in the effort's design record (precedent: `retire-permission-helper-solution-design.md`, 2026-10-01).
 - Never invent new frontmatter fields not in the file format standards.
 - Never omit required frontmatter fields — use `null` rather than omitting.
 - Never generate files with authoring notes (`# NOTE:`) — those are for the templates only.

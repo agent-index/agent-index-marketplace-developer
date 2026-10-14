@@ -27,7 +27,7 @@ How strict the preflight task should be when checking collections.
 
 Ask: "What strictness level should preflight checks use by default?"
 
-- `marketplace` — Full marketplace-eligibility checks. Every requirement in standards.md is enforced. Use this if you plan to publish collections to the marketplace.
+- `marketplace` — Full marketplace-eligibility checks. Every requirement in `marketplace-eligibility.md` is enforced. Use this if you plan to publish collections to the marketplace.
 - `org` — Slightly relaxed. Skips marketplace-specific requirements (like `marketplace_url` validation and naming prefix checks) but enforces all structural and behavioral standards.
 - Default: `marketplace`
 

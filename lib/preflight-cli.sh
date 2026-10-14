@@ -319,7 +319,7 @@ fi
 log "  errors: $(( ${#ERRORS[@]} - e10 ))"
 
 # ── Check 11: file-integrity sentinel (AIFS:FILE-END) (added in v1.6.0) ──────
-# standards.md § "File-integrity sentinel": a stamped file's last non-whitespace
+# marketplace-eligibility.md § "File-integrity sentinel (`AIFS:FILE-END`)": a stamped file's last non-whitespace
 # content must be its per-format sentinel encoding. Missing sentinel on a stampable
 # file = ERROR when collection.json declares "file_integrity": "sentinel-v1",
 # WARNING otherwise (adoption nudge). Deterministic replacement for Check 6's
@@ -352,7 +352,7 @@ while IFS= read -r -d '' f; do
 done < <(find "$COLL" \( -name '*.md' -o -name '*.json' -o -name '*.sh' -o -name '*.py' -o -name '*.js' \) \
     -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -not -name '*.jsonl' -print0)
 if [[ -z "$FI_MODE" ]] && (( UNSTAMPED_COUNT > 0 )); then
-    warn "  $UNSTAMPED_COUNT file(s) without AIFS:FILE-END sentinel — collection has not adopted sentinel-v1 (declare \"file_integrity\": \"sentinel-v1\" in collection.json and stamp files; see standards.md § File-integrity sentinel)"
+    warn "  $UNSTAMPED_COUNT file(s) without AIFS:FILE-END sentinel — collection has not adopted sentinel-v1 (declare \"file_integrity\": \"sentinel-v1\" in collection.json and stamp files; see marketplace-eligibility.md § File-integrity sentinel, developer collection)"
 fi
 log "  errors: $(( ${#ERRORS[@]} - e11 )), warnings: $(( ${#WARNINGS[@]} - w11 ))"
 
@@ -539,7 +539,7 @@ done < <(find "$COLL" -type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o
 log "  errors: $(( ${#ERRORS[@]} - e15 )), warnings: $(( ${#WARNINGS[@]} - w15 ))"
 
 # ── Check 16: spec-doc currency headers (added in preflight task v1.8.0) ────
-# standards.md § "Spec Document Currency": root-level spec/guide docs declare
+# marketplace-eligibility.md § "Spec Document Currency": root-level spec/guide docs declare
 # Last Updated (+ optional Version); the header is the declared basis of currency,
 # not mtime and not git. Two-tier by design: docs that declare a header must keep
 # it accurate (WARNING when the CHANGELOG moved past it, ERROR on a forward
@@ -565,7 +565,7 @@ for f in "$COLL"/*.md; do
     base=$(basename "$f")
     case "$base" in
         CHANGELOG.md) continue ;;
-        standards.md|ROADMAP.md|README.md|*-spec.md|*-guide.md) ;;
+        marketplace-eligibility.md|runtime-reference.md|admin-distribution.md|ROADMAP.md|README.md|*-spec.md|*-guide.md) ;;
         *) continue ;;
     esac
     hdr=$(head -15 "$f")
@@ -600,13 +600,13 @@ for f in "$COLL"/*.md; do
     fi
 done
 if (( ${#undeclared[@]} > 0 )); then
-    warn "  ${#undeclared[@]} root-level spec/guide doc(s) declare no currency header: ${undeclared[*]} (see standards.md § Spec Document Currency)"
+    warn "  ${#undeclared[@]} root-level spec/guide doc(s) declare no currency header: ${undeclared[*]} (see marketplace-eligibility.md § Spec Document Currency, developer collection)"
 fi
 log "  errors: $(( ${#ERRORS[@]} - e16 )), warnings: $(( ${#WARNINGS[@]} - w16 ))"
 
 
 # ── Check 17: permission changes only through the core procedure (preflight task v1.10.0) ─
-# standards.md § "Permission changes: list, confirm, apply, verify" (core 3.32.0): the three
+# core runtime-reference.md § "Permission changes: list, confirm, apply, verify" (core 3.32.0): the three
 # permission-modifying ops are called ONLY from agent-index-core/internal/permission-changes.md.
 # ERROR on an invocation form anywhere else in capability files; WARNING on leftover references
 # to the retired permission-change-helper flow; WARNING on a collaborative-acls.json still using
