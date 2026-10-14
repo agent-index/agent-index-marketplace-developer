@@ -102,6 +102,73 @@ Every name listed in `collection.json` `api` array must have a corresponding `.m
 
 ---
 
+## API Entry Format
+
+The `api` array in `collection.json` lists the collection's API members. Each entry takes one of two forms, and both may appear in the same array.
+
+**Object form (SHOULD).** The capability name plus its natural-language triggers:
+
+```json
+"api": [
+  {
+    "name": "daily-view",
+    "triggers": [
+      { "phrase": "what's on my plate today", "capability": "daily-view", "description": "Show today's priorities and pending items" },
+      { "phrase": "morning overview", "capability": "daily-view", "description": "Start-of-day summary of what needs attention" }
+    ]
+  }
+]
+```
+
+**String form (allowed).** The bare capability name: `"api": ["session-start", "member-bootstrap"]`. A string entry cannot carry triggers, so the capability gets no natural-language routing and is reachable only by its `@ai:` alias. Use it for capabilities that are not meant to be asked for in conversation. Core's own startup and admin tasks are an example.
+
+New entries SHOULD use the object form. It is not a MUST, because core's string-form entries are valid and would otherwise fail their own requirement.
+
+An object entry carries exactly two fields:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `name` | Yes | The capability name: the `/api/{name}.md` filename without `.md`, and the `name` in that file's frontmatter. |
+| `triggers` | Yes | Array of trigger objects (§ "Natural Language Triggers"). It may be empty (`[]`) for a capability not meant to be invoked by phrase, such as a helper skill another capability calls, or a provider-only member. |
+
+Every entry, in either form, is an API member and is subject to § "API Member Requirements".
+
+---
+
+## Natural Language Triggers
+
+Triggers are how members reach a capability by saying what they want ("what's on my plate today") instead of typing an `@ai:` alias. This section covers how to write them. How the agent matches them at runtime is defined in core's `CLAUDE.md` § "Routing rules", summarized below, because a phrase can only be judged by what happens to it.
+
+### What happens to a trigger
+
+- **It is copied to each member.** When a collection is installed or updated, its triggers are merged into every member's `routing.json` as **collection defaults** (`org-setup` for a new member, `@ai:update` after that). Members can change, add and switch off phrases through `@ai:preferences`. A phrase a member changed is never overwritten by an update.
+- **It follows your updates.** If a later version points a phrase at a different capability, members' copies follow it, unless the member customized that phrase. If a later version drops a phrase, it is removed from members' files.
+- **It is matched by meaning.** An exact match (ignoring case and punctuation) wins outright. Otherwise the phrase **closest in meaning** to the request wins, so "what's on my plate today" beats "what's on my plate" for a request about today. If two phrases fit equally and point to different capabilities, the agent asks one short question. A member's own phrases win over collection defaults.
+- **Collisions are settled at install.** If your phrase is already a default from another collection, the member is asked which one they want. The other is switched off for that member.
+
+### Writing good triggers
+
+- **Write what members actually say.** Lowercase, conversational, usually two to six words, with no `@ai:` prefix. Don't rely on punctuation, since matching ignores it.
+- **Give each capability meant to be asked for at least two phrases (SHOULD)**, worded differently ("show bugs", "what bugs do we have"). One phrase leaves the agent guessing at every other wording.
+- **Be specific to your capability.** Generic phrases ("help", "show me", "settings") collide with other collections and get switched off for some members. Name the object ("show my strategy sources", not "show sources").
+- **Check for collisions before you release.** Search the marketplace's collections for your phrases. An exact duplicate across collections means every member who installs both is asked to choose.
+- **Don't repeat a phrase within your collection.** Two of your own capabilities with the same phrase always tie, so the member is always asked.
+- **Overlapping is fine.** A short phrase inside a longer one pointing elsewhere ("what's on my plate" / "what's on my plate today") works, because the more specific one wins. Make sure each one reads well on its own.
+
+### Trigger object fields
+
+All three fields are required:
+
+| Field | Meaning |
+|---|---|
+| `phrase` | The phrase, as above. |
+| `capability` | The API member the phrase opens. It MUST equal the enclosing entry's `name`. A mismatch (often left behind by a rename) produces a mapping to a capability that doesn't exist, which never routes. |
+| `description` | One human-facing line saying what the capability does. Members see it when they review their phrases. It is not used for matching. |
+
+There is no list of reserved phrases. `@ai:` aliases are a separate mechanism, and their collisions are handled by the alias rules, not here.
+
+---
+
 ## Skill and Task File Requirements
 
 All skill and task definition files (in both `/api/` and `/internal/`) must conform to the agent-index file format standards defined in `agent-index-meta-docs/agent-index-file-format-standards.md`.
