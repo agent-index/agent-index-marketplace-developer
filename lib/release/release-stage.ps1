@@ -15,7 +15,7 @@
 # Cleanup (1.14.0): after each repo is pushed it is checked out on the branch it started on (the default
 # branch if it started on the channel). The staged commits stay on channel/<name>. -StayOnChannel skips this.
 #
-# Promote later: PR channel/<name> -> <default>, merge, release-push -TagOnly, then
+# Promote later: PR channel/<name> -> <default>, merge, release-push -TagOnly (with the FULL candidate manifest), then
 # git checkout <default>; git pull.
 #
 # Usage: powershell -ExecutionPolicy Bypass -File release-stage.ps1 -Manifest <manifest.json> -Channel <name> [-SkipPreflight] [-Yes] [-StayOnChannel]
@@ -118,7 +118,8 @@ if ($gateFail) { Die "stage gates failed -- nothing was changed" }
 # Preflight reads each repo's working tree, including sibling repos (e.g. core is checked against the
 # listings catalog). A repo that is already staged and has nothing new is usually back on its default
 # branch (cleanup), so its working tree is the RELEASED content, not the candidate. Check those repos out
-# on the channel for the gate; they are switched back afterwards.
+# on the channel for the gate; they are switched back afterwards. Siblings NOT in this manifest (a partial
+# re-stage) are not checked out: preflight --channel reads their staged version from origin/$br instead.
 $viewed = @{}; $restoredViews = @{}
 function Restore-Views {
   foreach ($k in @($script:viewed.Keys)) {
@@ -172,9 +173,10 @@ if ($SkipPreflight) {
   foreach ($n in $order) {
     $p = $paths[$n]
     if (-not (Test-Path (Join-Path $p "collection.json"))) { Write-Host "  ${n}: no collection.json (adapter or catalog repo) -- preflight not applicable, skipped"; continue }
-    # Same invocation release-prep uses.
+    # Same invocation release-prep uses, plus --channel: a sibling NOT in this manifest (partial re-stage)
+    # may be back on main; Check 12 then reads its version from origin/$br (bug 20261008-8d20ea22-195439-2ca6).
     $bashColl = ConvertTo-BashPath ((Resolve-Path $p).Path)
-    $pf = & $bash "$bashPreflight" --collection "$bashColl" 2>&1
+    $pf = & $bash "$bashPreflight" --collection "$bashColl" --channel "$Channel" 2>&1
     if ($LASTEXITCODE -ne 0) {
       Write-Host "  FAIL ${n}: preflight did not pass -- output:"
       ($pf | Select-Object -Last 20) | ForEach-Object { Write-Host "    $_" }
@@ -297,7 +299,9 @@ Write-Host "  pushes, no force; each repo goes back to its branch afterwards). R
 Write-Host ""
 Write-Host "PROMOTE when the candidate passes, per repo (code repos first, listings last):"
 Write-Host "  1. Open a PR $br -> <default branch>, and merge it."
-Write-Host "  2. powershell -ExecutionPolicy Bypass -File lib\release\release-push.ps1 -Manifest $Manifest -TagOnly"
+Write-Host "  2. powershell -ExecutionPolicy Bypass -File lib\release\release-push.ps1 -Manifest <FULL candidate manifest> -TagOnly"
+Write-Host "     WARNING: use the manifest for the WHOLE candidate. $Manifest lists only the repos staged in THIS run;"
+Write-Host "     if this was a partial re-stage, promoting with it tags only those repos and leaves the rest untagged."
 Write-Host "  3. git checkout <default branch>; git pull; git branch -D $br"
 exit 0
 # AIFS:FILE-END

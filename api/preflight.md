@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.10.0
+version: 1.10.1
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -208,7 +208,7 @@ The `agent-index-resource-listings` repo holds three directory files that broadc
 - [ ] If the collection isn't represented in any directory: NOTE only (org-internal collections aren't required to publish, but a newly-published collection that should be discoverable but isn't listed will fall through this check; the cross-package coordination reminder picks it up).
 - [ ] **Top-level `directory_version` must move when content changes.** Each directory file carries a top-level `directory_version` that `check-updates`/`refresh-marketplace-cache` compare to decide "is there anything new." If the entry's `current_version` (or any listing content) changed in this release but `directory_version` is unchanged from the last published value, ERROR: "marketplace-directory content changed but directory_version was not bumped — staleness checks will not see this release (bug 20260607-8d20ea22-131906-d1rv)." Determine "changed" by `git diff` against the prior commit of the directory file when a git clone is reachable; otherwise compare the entry's `current_version` against the directory and warn if they moved while `directory_version` did not. Bumping `last_updated` alone is NOT sufficient.
 
-The check finds catalogs by relative path (`../agent-index-resource-listings/` and any other sibling holding a `marketplace-directory.json`) when run from sibling clones, via a configurable `resource_listings_path` parameter, or via extra catalog paths (the CLI's `CATALOG_PATHS`, colon-separated). If no catalog is reachable, surface a NOTE: "Could not locate any marketplace catalog; skipped broadcast freshness check. Verify manually." If catalogs are reachable but none lists this collection, NOTE which catalogs were searched. Implemented in `lib/preflight-cli.sh` as Checks 10 (directory_version bump), 12 (phantom-version guard) and 13 (current_version match), all iterating every discovered catalog.
+The check finds catalogs by relative path (`../agent-index-resource-listings/` and any other sibling holding a `marketplace-directory.json`) when run from sibling clones, via a configurable `resource_listings_path` parameter, or via extra catalog paths (the CLI's `CATALOG_PATHS`, colon-separated). If no catalog is reachable, surface a NOTE: "Could not locate any marketplace catalog; skipped broadcast freshness check. Verify manually." If catalogs are reachable but none lists this collection, NOTE which catalogs were searched. Implemented in `lib/preflight-cli.sh` as Checks 10 (directory_version bump), 12 (phantom-version guard) and 13 (current_version match), all iterating every discovered catalog. In stage mode (`--channel <name>`, which `release-stage` passes) Check 12 also accepts a catalog version that equals the sibling's `collection.json`/`adapter.json` on its local `origin/channel/<name>` (read with `git show`, nothing fetched or checked out), so a partial re-stage passes while siblings outside the manifest sit on their default branch (bug `20261008-8d20ea22-195439-2ca6`).
 
 **`inherit: false` spec usage vs adapter contract version (added in preflight v1.4.0, closes section 4 of idea `helper-spec-needs-inherit-passthrough`):**
 

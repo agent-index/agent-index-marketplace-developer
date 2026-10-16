@@ -1,5 +1,13 @@
 ﻿# Developer Collection — Changelog
 
+## [1.14.1] — <RELEASE_DATE> — release tooling fixes (macOS, review gate, partial re-stage)
+
+### Fixed
+- **preflight-cli names files on macOS** — GNU-only `realpath --relative-to` replaced (bug `20260914-68dff8bf-140714-cdda`); Check 15 no longer flags scripts ending in `fi`/`done`/`esac`/`end`/`}` (bug `20260902-68dff8bf-145243-6f32`); new `--channel` lets Check 12 accept a sibling's version from its `origin/channel/<name>` during a partial re-stage (bug `20261008-8d20ea22-195439-2ca6`).
+- **release-push.sh stamps the CHANGELOG date portably and byte-safely**, and stops if `<RELEASE_DATE>` survives (bug `20261012-6b8d7f00-110425-ae51`); **the push review lists untracked files** and the integrity gate checks them (bug `20260921-8d20ea22-195619-c3d7`).
+- **release-prep restamps `collection_version` as a single-field byte-level replace** (keeps LF, indentation, encoding, BOM) instead of re-serializing the manifest (bug `20260921-8d20ea22-195619-b2c4`).
+- **release-stage PROMOTE text points at the full candidate manifest** (bug `20261008-8d20ea22-195440-22bf`); **the release task names `agent-index-marketplace-developer/lib/release/…`** and warns about stale copies (bug `20261012-6b8d7f00-110420-1670`).
+
 ## [1.14.0] — 2026-10-01 — Permission changes through the core procedure; new preflight Check 17
 
 **MINOR — pairs with agent-index-core 3.32.0.** Part of retiring the permission-change-helper (design record: `/shared/projects/core-improvements/artifacts/retire-permission-helper-*.md`).
