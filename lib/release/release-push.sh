@@ -169,8 +169,11 @@ for n in "${ORDER[@]}"; do
           echo "  INTEGRITY: $f last line ends mid-word with no terminator/sentinel (likely truncated)"; integrity_fail=1
         fi ;; esac
     ;; esac
-  done < <(git -C "$p" diff --name-only HEAD 2>/dev/null)
-  # show the diff for operator review
+  done < <(git -C "$p" diff --name-only HEAD 2>/dev/null; git -C "$p" ls-files --others --exclude-standard 2>/dev/null)
+  # show the diff for operator review. git diff HEAD omits untracked files, but the commit below uses
+  # add -A, so list everything the commit will contain first (bug 20260921-8d20ea22-195619-c3d7).
+  echo "  --- git status --porcelain (everything the commit will contain; ?? = NEW file, not in the diff below) ---"
+  git -C "$p" status --porcelain 2>/dev/null | sed 's/^/  /'
   echo "  --- git diff --stat HEAD ---"; git -C "$p" diff --stat HEAD 2>/dev/null | sed 's/^/  /'
   echo "  (full diff follows; review it)"; git -C "$p" --no-pager diff HEAD 2>/dev/null | sed 's/^/  | /' | head -400
 done
@@ -186,9 +189,14 @@ DEFERRED=0
 for n in "${ORDER[@]}"; do
   p="${PATHS[$n]}"; v="${VERS[$n]}"; [ -d "$p/.git" ] || { echo "SKIP $n"; continue; }
   echo ""; echo "----- pushing $n v$v -----"
-  # CHANGELOG date-stamp at push (replace RELEASE_DATE placeholder)
+  # CHANGELOG date-stamp at push (replace RELEASE_DATE placeholder). Portable + byte-safe: GNU-only
+  # `sed -i` failed silently on macOS (bug 20261012-6b8d7f00-110425-ae51); this keeps the bytes and any
+  # BOM as found, like release-push.ps1. Stop if the placeholder survives.
   if [ -f "$p/CHANGELOG.md" ] && grep -q '<RELEASE_DATE>' "$p/CHANGELOG.md"; then
-    sed -i "s/<RELEASE_DATE>/$TODAY/g" "$p/CHANGELOG.md"; echo "  stamped CHANGELOG date -> $TODAY"
+    python3 -c "import sys;f,d=sys.argv[1:3];b=open(f,'rb').read();open(f,'wb').write(b.replace(b'<RELEASE_DATE>',d.encode('ascii')))" \
+      "$(py_path "$p/CHANGELOG.md")" "$TODAY" || die "could not stamp the CHANGELOG date for $n"
+    grep -q '<RELEASE_DATE>' "$p/CHANGELOG.md" && die "$n: CHANGELOG.md still contains <RELEASE_DATE> after stamping -- not committing"
+    echo "  stamped CHANGELOG date -> $TODAY"
   fi
   git -C "$p" add -A
   if ! git -C "$p" diff --cached --quiet; then

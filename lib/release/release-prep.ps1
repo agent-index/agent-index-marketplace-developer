@@ -80,13 +80,22 @@ foreach ($r in $m.repos) {
   }
 
   # 2. restamp api/*-manifest.json collection_version
+  # Byte-level, single-field replace (bug 20260921-8d20ea22-195619-b2c4): a ConvertTo-Json round trip
+  # re-indented every manifest, doubled the colon spacing and wrote CRLF. Only the value changes here;
+  # line endings, indentation, encoding and any BOM stay as found -- the same one-line diff as the .sh.
   $apiDir = Join-Path $path "api"
-  if ($kind -eq "collection" -and (Test-Path $apiDir)) {
+  if ($kind -eq "collection" -and (Test-Path $apiDir) -and $ver) {
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
     Get-ChildItem -Path $apiDir -Filter "*-manifest.json" | ForEach-Object {
-      try { $j = Get-Content -Raw $_.FullName | ConvertFrom-Json } catch { return }
-      if (($j.PSObject.Properties.Name -contains 'collection_version') -and ("$($j.collection_version)" -ne $ver) -and $ver) {
-        $j.collection_version = $ver
-        ($j | ConvertTo-Json -Depth 40) | Set-Content -Path $_.FullName -Encoding ascii
+      $mb = [System.IO.File]::ReadAllBytes($_.FullName)
+      $mBom = ($mb.Length -ge 3 -and $mb[0] -eq 0xEF -and $mb[1] -eq 0xBB -and $mb[2] -eq 0xBF)
+      $mOff = $(if ($mBom) { 3 } else { 0 })
+      $mTxt = $utf8.GetString($mb, $mOff, $mb.Length - $mOff)
+      try { $null = $mTxt | ConvertFrom-Json } catch { return }
+      $mm = [regex]::Match($mTxt, '("collection_version"\s*:\s*")([^"]*)(")')
+      if ($mm.Success -and $mm.Groups[2].Value -ne $ver) {
+        $mTxt = $mTxt.Substring(0, $mm.Groups[2].Index) + $ver + $mTxt.Substring($mm.Groups[2].Index + $mm.Groups[2].Length)
+        [System.IO.File]::WriteAllText($_.FullName, $mTxt, (New-Object System.Text.UTF8Encoding($mBom)))
         Write-Host ("  restamped " + $_.Name + " -> " + $ver)
       }
     }

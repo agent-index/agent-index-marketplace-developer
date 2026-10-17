@@ -141,7 +141,8 @@ foreach ($n in $order) {
   $url = (& git -C $p remote get-url origin 2>$null)
   if (-not $url) { Write-Host "  no origin remote -- git -C $p remote add origin <https-url>"; $integrityFail = $true }
   elseif ($url -notlike "https://*") { Write-Host "  origin NOT https ($url) -- git -C $p remote set-url origin <https-url>"; $integrityFail = $true }
-  $changed = & git -C $p diff --name-only HEAD 2>$null
+  # Untracked files too: the commit below stages with add -A (bug 20260921-8d20ea22-195619-c3d7).
+  $changed = @(& git -C $p diff --name-only HEAD 2>$null) + @(& git -C $p ls-files --others --exclude-standard 2>$null)
   foreach ($f in $changed) {
     if ($f -match '\.(md|sh|js|json)$') {
       $fp = Join-Path $p $f
@@ -159,6 +160,9 @@ foreach ($n in $order) {
       }
     }
   }
+  # git diff HEAD omits untracked files, but the commit uses add -A: list everything it will contain first.
+  Write-Host "  --- git status --porcelain (everything the commit will contain; ?? = NEW file, not in the diff below) ---"
+  & git -C $p status --porcelain 2>$null | ForEach-Object { Write-Host "  $_" }
   Write-Host "  --- git diff --stat HEAD ---"; & git -C $p diff --stat HEAD 2>$null | ForEach-Object { Write-Host "  $_" }
   Write-Host "  (full diff -- review it)"; (& git -C $p --no-pager diff HEAD 2>$null | Select-Object -First 400) | ForEach-Object { Write-Host "  | $_" }
 }
