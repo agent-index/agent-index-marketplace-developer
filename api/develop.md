@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.6.0
+version: 1.6.1
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
