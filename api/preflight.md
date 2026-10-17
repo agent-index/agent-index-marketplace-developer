@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.10.0
+version: 1.10.1
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -208,7 +208,7 @@ The `agent-index-resource-listings` repo holds three directory files that broadc
 - [ ] If the collection isn't represented in any directory: NOTE only (org-internal collections aren't required to publish, but a newly-published collection that should be discoverable but isn't listed will fall through this check; the cross-package coordination reminder picks it up).
 - [ ] **Top-level `directory_version` must move when content changes.** Each directory file carries a top-level `directory_version` that `check-updates`/`refresh-marketplace-cache` compare to decide "is there anything new." If the entry's `current_version` (or any listing content) changed in this release but `directory_version` is unchanged from the last published value, ERROR: "marketplace-directory content changed but directory_version was not bumped — staleness checks will not see this release (bug 20260607-8d20ea22-131906-d1rv)." Determine "changed" by `git diff` against the prior commit of the directory file when a git clone is reachable; otherwise compare the entry's `current_version` against the directory and warn if they moved while `directory_version` did not. Bumping `last_updated` alone is NOT sufficient.
 
-The check finds catalogs by relative path (`../agent-index-resource-listings/` and any other sibling holding a `marketplace-directory.json`) when run from sibling clones, via a configurable `resource_listings_path` parameter, or via extra catalog paths (the CLI's `CATALOG_PATHS`, colon-separated). If no catalog is reachable, surface a NOTE: "Could not locate any marketplace catalog; skipped broadcast freshness check. Verify manually." If catalogs are reachable but none lists this collection, NOTE which catalogs were searched. Implemented in `lib/preflight-cli.sh` as Checks 10 (directory_version bump), 12 (phantom-version guard) and 13 (current_version match), all iterating every discovered catalog.
+The check finds catalogs by relative path (`../agent-index-resource-listings/` and any other sibling holding a `marketplace-directory.json`) when run from sibling clones, via a configurable `resource_listings_path` parameter, or via extra catalog paths (the CLI's `CATALOG_PATHS`, colon-separated). If no catalog is reachable, surface a NOTE: "Could not locate any marketplace catalog; skipped broadcast freshness check. Verify manually." If catalogs are reachable but none lists this collection, NOTE which catalogs were searched. Implemented in `lib/preflight-cli.sh` as Checks 10 (directory_version bump), 12 (phantom-version guard) and 13 (current_version match), all iterating every discovered catalog. In stage mode (`--channel <name>`, which `release-stage` passes) Check 12 also accepts a catalog version that equals the sibling's `collection.json`/`adapter.json` on its local `origin/channel/<name>` (read with `git show`, nothing fetched or checked out), so a partial re-stage passes while siblings outside the manifest sit on their default branch (bug `20261008-8d20ea22-195439-2ca6`).
 
 **`inherit: false` spec usage vs adapter contract version (added in preflight v1.4.0, closes section 4 of idea `helper-spec-needs-inherit-passthrough`):**
 
@@ -338,15 +338,15 @@ This check applies only when the collection being preflighted is `agent-index-co
 **Authoring note remnants:**
 - [ ] No lines beginning with `# NOTE:` remain in any file (error — these must be removed before publishing)
 
-**File-integrity sentinel (added in preflight v1.6.0 — standards.md § "File-integrity sentinel"):**
+**File-integrity sentinel (added in preflight v1.6.0 — `marketplace-eligibility.md` § "File-integrity sentinel (`AIFS:FILE-END`)"):**
 - [ ] If `collection.json` declares `"file_integrity": "sentinel-v1"`: every stampable file (`*.md`, `*.json`, `*.sh`, `*.py`, `*.js`; JSONL and binaries excluded) ends with its per-format `AIFS:FILE-END` encoding — Markdown: final line `<!-- AIFS:FILE-END -->`; JSON: top-level `"_file_end": "AIFS:FILE-END"`; shell/Python: `# AIFS:FILE-END`; JS: `// AIFS:FILE-END`. Missing sentinel is an **ERROR**: the file is presumed tail-truncated. Trailing whitespace after the marker is fine.
 - [ ] If the collection does NOT declare sentinel-v1: emit a single summary WARNING with the unstamped file count, recommending adoption. Do not list per-file.
 - [ ] This is the deterministic replacement for the mid-word heuristic on stamped files; the heuristic (CLI Check 6) remains for unstamped legacy files only.
 - [ ] Implemented in `lib/preflight-cli.sh` as Check 11.
 
-**Spec document currency (added in preflight task v1.8.0 — standards.md § "Spec Document Currency"):**
+**Spec document currency (added in preflight task v1.8.0 — `marketplace-eligibility.md` § "Spec Document Currency"):**
 
-Scope is root-level `*.md` documents only: `standards.md`, `ROADMAP.md`, `README.md`, `*-spec.md`, `*-guide.md`. Exclude `api/`, `setup/`, `internal/`, `upgrade/` — frontmatter files are covered by Check 1.
+Scope is root-level `*.md` documents only: `marketplace-eligibility.md`, `runtime-reference.md`, `admin-distribution.md`, `ROADMAP.md`, `README.md`, `*-spec.md`, `*-guide.md`. Exclude `api/`, `setup/`, `internal/`, `upgrade/` — frontmatter files are covered by Check 1.
 
 - [ ] For each in-scope document that declares a currency header (`Last Updated:` / `Last updated:`, bold or plain), verify the date parses as `YYYY-MM-DD`. An unparseable date is a WARNING.
 - [ ] For each in-scope document that declares `Last Updated`, find the newest `CHANGELOG.md` entry that names the file. If that entry's date is **newer** than the header date, WARNING — the document was changed in a release without a header bump. If the CHANGELOG names the file nowhere, skip silently: there is nothing to compare against, and the absence is not evidence of currency.
@@ -356,7 +356,7 @@ Scope is root-level `*.md` documents only: `standards.md`, `ROADMAP.md`, `README
 - [ ] ERROR is reserved for one case: a document that declares a currency header, and whose declared `Version` is ahead of anything the CHANGELOG records for it. That is a forward reference — someone bumped the document and not the release.
 - [ ] Implemented in `lib/preflight-cli.sh` as Check 16.
 
-**Permission changes only through the core procedure (added in preflight v1.10.0 — core 3.32.0, standards.md § "Permission changes: list, confirm, apply, verify"):**
+**Permission changes only through the core procedure (added in preflight v1.10.0 — core 3.32.0, core `runtime-reference.md` § "Permission changes: list, confirm, apply, verify"):**
 
 Scope: `*.md` under `api/`, `setup/`, `internal/`, `upgrade/`, `templates/`. Exempt: in `agent-index-core`, the procedure itself (`internal/permission-changes.md`) and `upgrade/3-to-4.md` (it describes the removal); in this collection, `api/preflight.md` (it quotes the patterns). Core 4.0.0 removed the helper, so a reference elsewhere points at something that no longer exists.
 

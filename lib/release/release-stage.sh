@@ -16,7 +16,7 @@
 # Cleanup (1.14.0): after each repo is pushed it is checked out on the branch it started on (the default
 # branch if it started on the channel). The staged commits stay on channel/<name>. --stay-on-channel skips this.
 #
-# Promote later: PR channel/<name> -> <default>, merge, release-push --tag-only, then
+# Promote later: PR channel/<name> -> <default>, merge, release-push --tag-only (with the FULL candidate manifest), then
 # git checkout <default> && git pull.
 #
 # Usage: bash release-stage.sh <manifest.json> --channel <name> [--skip-preflight] [--yes] [--stay-on-channel]
@@ -108,7 +108,8 @@ done
 # Preflight reads each repo's working tree, including sibling repos (e.g. core is checked against the
 # listings catalog). A repo that is already staged and has nothing new is usually back on its default
 # branch (cleanup), so its working tree is the RELEASED content, not the candidate. Check those repos out
-# on the channel for the gate; they are switched back afterwards.
+# on the channel for the gate; they are switched back afterwards. Siblings NOT in this manifest (a partial
+# re-stage) are not checked out: preflight --channel reads their staged version from origin/$BR instead.
 declare -A VIEWED RESTORED
 restore_views(){
   local k; for k in "${!VIEWED[@]}"; do
@@ -151,8 +152,9 @@ else
     if [ ! -f "$p/collection.json" ]; then
       echo "  $n: no collection.json (adapter or catalog repo) -- preflight not applicable, skipped"; continue
     fi
-    # Same invocation release-prep uses.
-    if ! bash "$PREFLIGHT" --collection "$p" >/tmp/pf.$$ 2>&1; then
+    # Same invocation release-prep uses, plus --channel: a sibling NOT in this manifest (partial re-stage)
+    # may be back on main; Check 12 then reads its version from origin/$BR (bug 20261008-8d20ea22-195439-2ca6).
+    if ! bash "$PREFLIGHT" --collection "$p" --channel "$CH" >/tmp/pf.$$ 2>&1; then
       echo "  FAIL $n: preflight errors:"; grep -E '✗|error' /tmp/pf.$$ | head | sed 's/^/    /'; pf_fail=1
     else
       echo "  ok $n: preflight passed"
@@ -267,7 +269,9 @@ echo "  pushes, no force; each repo goes back to its branch afterwards). Repos y
 echo ""
 echo "PROMOTE when the candidate passes, per repo (code repos first, listings last):"
 echo "  1. Open a PR $BR -> <default branch>, and merge it."
-echo "  2. bash lib/release/release-push.sh $M --tag-only"
+echo "  2. bash lib/release/release-push.sh <FULL candidate manifest> --tag-only"
+echo "     WARNING: use the manifest for the WHOLE candidate. $M lists only the repos staged in THIS run;"
+echo "     if this was a partial re-stage, promoting with it tags only those repos and leaves the rest untagged."
 echo "  3. git checkout <default branch> && git pull && git branch -D $BR"
 exit 0
 # AIFS:FILE-END
