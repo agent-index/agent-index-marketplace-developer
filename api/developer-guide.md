@@ -1,7 +1,7 @@
 ---
 name: developer-guide
 type: skill
-version: 1.4.0
+version: 1.4.1
 collection: developer
 description: Always-available reference skill that answers questions about agent-index development — searches standards, authoring guide, file format specs, and capability provider docs so developers don't have to.
 stateful: false

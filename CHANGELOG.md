@@ -1,5 +1,15 @@
 ﻿# Developer Collection — Changelog
 
+## [1.15.0] — 2026-10-17 — marketplace-eligibility.md (from core standards.md)
+
+Pairs with core 4.1.0 (CI-013, CI-002 Wave 2; developer#4, #5, #7 by Kallista Salak).
+
+### Added
+- **`marketplace-eligibility.md`** — the marketplace eligibility and authoring requirements that were in core `standards.md`: file structure, `collection.json` fields, API entry format and natural-language triggers (CI-002 Wave 2), skill/task and setup requirements, core-injected parameters, member data placement, unique names and namespaces, the file-integrity sentinel, collaborative ACLs, versioning, EOL, CHANGELOG, spec-document currency, README, category registry, naming, member resolution, shared artifacts and capability providers. Its **Release Gate** names which checks only the CLI runs (closes bug c1ae: `@ai:preflight` and `lib/preflight-cli.sh` are not equivalent; the CLI is the hard gate).
+
+### Changed
+- develop 1.6.1, developer-guide 1.4.1, preflight 1.10.2, `lib/preflight-cli.sh`, the release checklist and collection setup cite `marketplace-eligibility.md` and core `runtime-reference.md` instead of `standards.md`. **Preflight Check 16** (spec-document currency) covers `marketplace-eligibility.md`, `runtime-reference.md` and `admin-distribution.md` in place of `standards.md`.
+
 ## [1.14.1] — 2026-10-17 — release tooling fixes (macOS, review gate, partial re-stage)
 
 ### Fixed
