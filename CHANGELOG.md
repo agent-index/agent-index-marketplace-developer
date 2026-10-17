@@ -1,6 +1,6 @@
 ﻿# Developer Collection — Changelog
 
-## [1.15.0] — <RELEASE_DATE> — marketplace-eligibility.md (from core standards.md)
+## [1.15.0] — 2026-10-17 — marketplace-eligibility.md (from core standards.md)
 
 Pairs with core 4.1.0 (CI-013, CI-002 Wave 2; developer#4, #5, #7 by Kallista Salak).
 
