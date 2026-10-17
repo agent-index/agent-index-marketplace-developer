@@ -338,15 +338,15 @@ This check applies only when the collection being preflighted is `agent-index-co
 **Authoring note remnants:**
 - [ ] No lines beginning with `# NOTE:` remain in any file (error — these must be removed before publishing)
 
-**File-integrity sentinel (added in preflight v1.6.0 — standards.md § "File-integrity sentinel"):**
+**File-integrity sentinel (added in preflight v1.6.0 — `marketplace-eligibility.md` § "File-integrity sentinel (`AIFS:FILE-END`)"):**
 - [ ] If `collection.json` declares `"file_integrity": "sentinel-v1"`: every stampable file (`*.md`, `*.json`, `*.sh`, `*.py`, `*.js`; JSONL and binaries excluded) ends with its per-format `AIFS:FILE-END` encoding — Markdown: final line `<!-- AIFS:FILE-END -->`; JSON: top-level `"_file_end": "AIFS:FILE-END"`; shell/Python: `# AIFS:FILE-END`; JS: `// AIFS:FILE-END`. Missing sentinel is an **ERROR**: the file is presumed tail-truncated. Trailing whitespace after the marker is fine.
 - [ ] If the collection does NOT declare sentinel-v1: emit a single summary WARNING with the unstamped file count, recommending adoption. Do not list per-file.
 - [ ] This is the deterministic replacement for the mid-word heuristic on stamped files; the heuristic (CLI Check 6) remains for unstamped legacy files only.
 - [ ] Implemented in `lib/preflight-cli.sh` as Check 11.
 
-**Spec document currency (added in preflight task v1.8.0 — standards.md § "Spec Document Currency"):**
+**Spec document currency (added in preflight task v1.8.0 — `marketplace-eligibility.md` § "Spec Document Currency"):**
 
-Scope is root-level `*.md` documents only: `standards.md`, `ROADMAP.md`, `README.md`, `*-spec.md`, `*-guide.md`. Exclude `api/`, `setup/`, `internal/`, `upgrade/` — frontmatter files are covered by Check 1.
+Scope is root-level `*.md` documents only: `marketplace-eligibility.md`, `runtime-reference.md`, `admin-distribution.md`, `ROADMAP.md`, `README.md`, `*-spec.md`, `*-guide.md`. Exclude `api/`, `setup/`, `internal/`, `upgrade/` — frontmatter files are covered by Check 1.
 
 - [ ] For each in-scope document that declares a currency header (`Last Updated:` / `Last updated:`, bold or plain), verify the date parses as `YYYY-MM-DD`. An unparseable date is a WARNING.
 - [ ] For each in-scope document that declares `Last Updated`, find the newest `CHANGELOG.md` entry that names the file. If that entry's date is **newer** than the header date, WARNING — the document was changed in a release without a header bump. If the CHANGELOG names the file nowhere, skip silently: there is nothing to compare against, and the absence is not evidence of currency.
@@ -356,7 +356,7 @@ Scope is root-level `*.md` documents only: `standards.md`, `ROADMAP.md`, `README
 - [ ] ERROR is reserved for one case: a document that declares a currency header, and whose declared `Version` is ahead of anything the CHANGELOG records for it. That is a forward reference — someone bumped the document and not the release.
 - [ ] Implemented in `lib/preflight-cli.sh` as Check 16.
 
-**Permission changes only through the core procedure (added in preflight v1.10.0 — core 3.32.0, standards.md § "Permission changes: list, confirm, apply, verify"):**
+**Permission changes only through the core procedure (added in preflight v1.10.0 — core 3.32.0, core `runtime-reference.md` § "Permission changes: list, confirm, apply, verify"):**
 
 Scope: `*.md` under `api/`, `setup/`, `internal/`, `upgrade/`, `templates/`. Exempt: in `agent-index-core`, the procedure itself (`internal/permission-changes.md`) and `upgrade/3-to-4.md` (it describes the removal); in this collection, `api/preflight.md` (it quotes the patterns). Core 4.0.0 removed the helper, so a reference elsewhere points at something that no longer exists.
 

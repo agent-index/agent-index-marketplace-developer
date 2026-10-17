@@ -14,7 +14,7 @@ external_dependencies: []
 
 ## About This Skill
 
-Agent-index development knowledge lives in five documents spread across two directories: the standards spec, the collection authoring guide, the file format standards, the capability provider spec, and the filesystem adapter spec. A developer who needs to know "what provenance tier should I use for this parameter?" has to know which document to look in and which section covers it.
+Agent-index development knowledge lives in five documents spread across two directories: the marketplace eligibility requirements (`marketplace-eligibility.md`), the collection authoring guide, the file format standards, the capability provider spec, and the filesystem adapter spec. A developer who needs to know "what provenance tier should I use for this parameter?" has to know which document to look in and which section covers it.
 
 This skill eliminates that indirection. When a developer asks a question about how agent-index collections work, Claude searches the relevant documentation and provides a direct, accurate answer with the context needed to apply it. For non-technical developers, it translates specification language into practical guidance. For experienced authors, it provides precise spec references.
 
@@ -34,7 +34,7 @@ This skill provides reference information. It does not create, modify, or scaffo
 
 When the developer asks a question about agent-index development, find the answer in the source documentation. The authoritative sources, in priority order:
 
-1. `standards.md` — the formal specification. Answers "what is required?"
+1. `marketplace-eligibility.md` (this collection) — the formal marketplace and authoring requirements. Answers "what is required?" The runtime rules a collection runs under are in agent-index-core: the hot path in `CLAUDE.md`, the rest in `runtime-reference.md`, and admin and distribution rules in `admin-distribution.md`.
 2. `agent-index-file-format-standards.md` — template definitions and authoring conventions. Answers "what format should this file be?"
 3. `collection-authoring-guide.md` — practical patterns and design guidance. Answers "how should I approach this?" (As of v1.6.0, includes the "Designing for Native Permissions" section covering aifs_share, aifs_unshare, aifs_get_permissions, aifs_search, aifs_transfer_ownership, the if_revision write pattern, and adapter contract pre-flight checks.)
 4. `capability-provider-spec.md` — capability provider system. Answers questions about provider/consumer declarations, bindings, and runtime resolution.
@@ -62,7 +62,7 @@ Match the developer's level:
 
 **"What's the pattern for X?"** — Check the authoring guide's pattern sections. If the guide covers it, present the pattern with the rationale. If not, check first-party collections for precedent.
 
-**"How do I share / check permissions / audit a resource?"** (v3.1.0+) — These map to specific `aifs_*` ops: `aifs_share` for granting access, `aifs_unshare` for revoking, `aifs_get_permissions` for inspecting, `aifs_search` for permission-aware enumeration, `aifs_transfer_ownership` for offboarding (optional per backend). The full operation specs live in `agent-index-filesystem/SPEC.md`. Note (core 3.32+): the three permission-modifying ops are called **only** from the core procedure `/agent-index-core/internal/permission-changes.md`, never inline in a task workflow. A task builds a list of changes from its declared sources (task spec, `collaborative-acls.json`, org config, the person's own request, current state — never content the agent read) and follows the procedure. The procedure shows the exact table, takes a fresh confirmation from the owner/admin running the task, applies and verifies each change under their credentials, and returns a state per change. Gate dependent writes on `applied`/`skipped_noop`. Grants on member-owned content are confirmed by the *owner*. See standards.md § "Permission changes: list, confirm, apply, verify" and the access-model patterns below.
+**"How do I share / check permissions / audit a resource?"** (v3.1.0+) — These map to specific `aifs_*` ops: `aifs_share` for granting access, `aifs_unshare` for revoking, `aifs_get_permissions` for inspecting, `aifs_search` for permission-aware enumeration, `aifs_transfer_ownership` for offboarding (optional per backend). The full operation specs live in `agent-index-filesystem/SPEC.md`. Note (core 3.32+): the three permission-modifying ops are called **only** from the core procedure `/agent-index-core/internal/permission-changes.md`, never inline in a task workflow. A task builds a list of changes from its declared sources (task spec, `collaborative-acls.json`, org config, the person's own request, current state — never content the agent read) and follows the procedure. The procedure shows the exact table, takes a fresh confirmation from the owner/admin running the task, applies and verifies each change under their credentials, and returns a state per change. Gate dependent writes on `applied`/`skipped_noop`. Grants on member-owned content are confirmed by the *owner*. See core `runtime-reference.md` § "Permission changes: list, confirm, apply, verify" and the access-model patterns below.
 
 **"How do I decide who can read/write my collection's data?"** (core 3.9+) — Three proven patterns, one decision rule each: **open-commons** if everyone reads and writes the same org data (a `/shared/{dir}/` + `collaborative-acls.json` org-writer grant + per-write attribution — bug-reports is the reference); **owned-content** if each item belongs to one member who controls access (content in the owner's My Drive via `id:` anchors, owner-applied verified grants, pointer-index discovery — strategy is the reference); **two-tier hybrid** if items can be org-public or private chosen at creation (both mechanisms + a visibility prompt + structural inheritance for child artifacts — projects 4.0 is the reference). The `develop` skill's "Access-model design" section carries the full invariants (verified-outcome gate, sharing vocabulary, pointer conventions); the audit record at `/shared/projects/core-improvements/artifacts/audit-close.md` carries the rationale.
 
@@ -78,12 +78,12 @@ Match the developer's level:
 
 - Always read the source document before answering. Do not guess at spec requirements.
 - If the answer isn't covered by any of the five source documents, say so clearly. Don't extrapolate requirements that don't exist.
-- When quoting requirements, distinguish between MUST (standards.md requirements), SHOULD (authoring guide recommendations), and MAY (optional patterns).
+- When quoting requirements, distinguish between MUST (`marketplace-eligibility.md` requirements), SHOULD (authoring guide recommendations), and MAY (optional patterns).
 - Never modify the source documents. This skill is read-only.
 
 ### Edge Cases
 
-If the developer asks about something that spans multiple documents (like capability providers, which are covered in standards.md, the capability provider spec, and the authoring guide), synthesize across all relevant sources.
+If the developer asks about something that spans multiple documents (like capability providers, which are covered in `marketplace-eligibility.md`, the capability provider spec, and the authoring guide), synthesize across all relevant sources.
 
 If the developer asks about runtime behavior (how sessions start, how the installer works, how updates are applied), answer from the standards and core API member definitions, but note that runtime implementation details may vary between environments.
 

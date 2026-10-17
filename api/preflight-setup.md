@@ -18,7 +18,7 @@ Default strictness level for preflight checks.
 Ask: "What strictness level should preflight use by default?"
 
 - Default: inherited from collection-setup `preflight_strictness`
-- `marketplace` — Full marketplace-eligibility checks. Every requirement in standards.md is enforced.
+- `marketplace` — Full marketplace-eligibility checks. Every requirement in `marketplace-eligibility.md` is enforced.
 - `org` — Slightly relaxed. Skips marketplace-specific requirements but enforces structural and behavioral standards.
 
 ### `verbose_report` [member-defined]
