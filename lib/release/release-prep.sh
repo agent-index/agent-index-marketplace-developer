@@ -61,15 +61,18 @@ while IFS=$'\t' read -r name path ver is_adapter in_listings; do
   # 2. restamp api/*-manifest.json collection_version to $ver
   if [ "$kind" = "collection" ] && [ -d "$path/api" ]; then
     python3 - "$(py_path "$path")" "$ver" <<'PY'
-import json,glob,sys,os
+# Byte-level, single-field replace (bug 20260921-8d20ea22-195619-b2c4): a json.dumps round trip
+# reformats the file (and escapes non-ASCII). Only the value changes; bytes, line endings and BOM stay.
+import json,glob,sys,os,re
 path,ver=sys.argv[1:3]
 for f in glob.glob(os.path.join(path,'api','*-manifest.json')):
+    b=open(f,'rb').read()
     try:
-        j=json.load(open(f))
-    except: continue
-    if j.get('collection_version')!=ver:
-        j['collection_version']=ver
-        open(f,'w').write(json.dumps(j,indent=2)+'\n')
+        json.loads(b.decode('utf-8-sig'))
+    except Exception: continue
+    m=re.search(rb'("collection_version"\s*:\s*")([^"]*)(")',b)
+    if m and m.group(2)!=ver.encode('utf-8'):
+        open(f,'wb').write(b[:m.start(2)]+ver.encode('utf-8')+b[m.end(2):])
         print('  restamped',os.path.basename(f),'->',ver)
 PY
   fi

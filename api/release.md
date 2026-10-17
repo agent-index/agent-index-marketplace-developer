@@ -1,7 +1,7 @@
 ---
 name: release
 type: task
-version: 1.3.0
+version: 1.3.1
 collection: developer
 description: Generates a matched pair of host-native release scripts — an idempotent build-and-prep script (adapter unit tests with module-resolution exit-classification, native bundle build + checksum stamp, manifest + resource-listings restamp, fail-closed version-consistency gate) and a gated push script (changelog date stamp, mandatory preflight, per-repo commit→push→tag v<version> in code-first/listings-last order, backend-distribution handoff). The ship-side counterpart to core's clone-script-generator.
 stateful: false
@@ -45,7 +45,7 @@ A release candidate can be installed by a test org **before** anything is tagged
 
 1. **Stage.** `release-stage` pushes every repo in the manifest to the branch `channel/<name>` (same manifest, plus a channel name). It runs the same preflight gate as `release-prep`, never tags, and never pushes the default branch. A repo already on `channel/<name>` gets a fast-forward push (iterating). A repo on any other branch is switched with `git checkout -B channel/<name>` (working changes kept) and pushed. If the channel already holds staged commits that branch doesn't have, a repo with no new changes is left as is, and one with changes is refused unless the developer types `REPLACE` (the script shows how to add the changes to the candidate instead). Repos with nothing staged yet are pushed at `HEAD`, so the channel carries the whole set. **Cleanup:** each repo is switched back to the branch it started on after its push (`-StayOnChannel` skips this).
 2. **Test.** On the test org's admin install: create the org with distribution channel `<name>` (or set "Distribution channel" in `edit-org`), refresh clones, then "publish our org updates". To fix: `git checkout channel/<name>` in the affected repos, edit, re-stage (each goes back to its branch afterwards).
-3. **Promote.** Per repo (code repos first, listings last): open a PR `channel/<name>` → default branch and merge it, then run `release-push --tag-only` to tag the merged commits. Then refresh each repo's default branch and drop the local channel branch: `git checkout <default> && git pull && git branch -D channel/<name>`.
+3. **Promote.** Per repo (code repos first, listings last): open a PR `channel/<name>` → default branch and merge it, then run `release-push --tag-only` with the full candidate manifest (not a partial re-stage's) to tag the merged commits. Then refresh each repo's default branch and drop the local channel branch: `git checkout <default> && git pull && git branch -D channel/<name>`.
 
 ### Cadence & Triggers
 
@@ -88,7 +88,7 @@ Record this order; the generated script pushes in it.
 
 ### Step 3: Emit the release-delta manifest (data) -- the committed scripts own the logic
 
-**Level-3 (C.1.5.0):** the prep/push logic is no longer transcribed into bespoke `prep-<tag>`/`push-<tag>` scripts each release. It lives in committed, version-controlled tooling at `agent-index-marketplace-developer/lib/release/` (`release-prep.{ps1,sh}`, `release-push.{ps1,sh}`). This task now emits ONLY a **release-delta manifest** (pure data -- which repos/versions changed) and surfaces the committed-script invocations. The agent still never builds or pushes.
+**Level-3 (C.1.5.0):** the prep/push logic is no longer transcribed into bespoke `prep-<tag>`/`push-<tag>` scripts each release. It lives in committed, version-controlled tooling at `agent-index-marketplace-developer/lib/release/` (`release-prep.{ps1,sh}`, `release-push.{ps1,sh}`, `release-stage.{ps1,sh}`) -- always run them from the developer clone, never from another `lib/release/` copy (Step 4). This task now emits ONLY a **release-delta manifest** (pure data -- which repos/versions changed) and surfaces the committed-script invocations. The agent still never builds or pushes.
 
 Write the manifest to `<install_root>/.agent-index/release-<headline-tag>.json` (torn-write discipline: read it back before surfacing). Shape (see `lib/release/release-manifest.schema.json`):
 
@@ -107,21 +107,21 @@ Only repos changed in the release go in `repos`/`push_order`; flag adapters with
 
 **The committed scripts encode every invariant the old generated pair did:**
 - `release-prep` -- preflight **hard gate** per repo (G3), adapter unit-test advisory-skip + **native bundle build + checksum + `node --check`** for `is_adapter` repos (P1/P2), `api/*-manifest.json` `collection_version` restamp (P3), and (via preflight Checks 10/13/14) the resource-listings stamp + cross-repo version-consistency gate + adapter build integrity (P4/P5). NO git writes; re-runnable.
-- `release-push` -- the **pre-push diff + integrity gate** (shows each repo's `git diff --stat`/full diff for review, and flags a lost `AIFS:FILE-END` sentinel vs HEAD, a missing trailing newline, or a non-HTTPS `origin` -- the guard that would have caught the create-org torn-write), CHANGELOG `<RELEASE_DATE>` stamp at push (G2), per-repo confirm-commit/push/**tag `v<version>`** in `push_order` with resource-listings LAST and never moving a published tag (G4), and the `/shared/dist` handoff note (G5).
+- `release-push` -- the **pre-push diff + integrity gate** (shows each repo's `git status --porcelain` -- new untracked files included -- and `git diff --stat`/full diff for review, and flags a lost `AIFS:FILE-END` sentinel vs HEAD, a missing trailing newline, or a non-HTTPS `origin` -- the guard that would have caught the create-org torn-write), CHANGELOG `<RELEASE_DATE>` stamp at push (G2), per-repo confirm-commit/push/**tag `v<version>`** in `push_order` with resource-listings LAST and never moving a published tag (G4), and the `/shared/dist` handoff note (G5).
 
 Preflight is the single source of truth for structural gates; `release-prep` calls it rather than re-implementing them inline.
 
 ### Step 4: Deliver
 
-Surface the committed-script invocations to the developer (**run prep first, then push**), naming the manifest path, the push order, and which repos tag at which `v<version>`:
+Surface the committed-script invocations to the developer (**run prep first, then push**), naming the manifest path, the push order, and which repos tag at which `v<version>`. **Name the scripts by their repo: they are `agent-index-marketplace-developer/lib/release/...` in the developer's local clone of the developer collection** (`<clones>` below is the folder holding their repo clones). Do not give a bare `lib/release/...` path: other copies exist (an install's `lib/release/`, a clone of core) and can be older -- a stale `release-push` without the branch-aware push tags a commit that is not on the default branch (bug `20261012-6b8d7f00-110420-1670`). If the developer has another `lib/release/` copy, warn them not to run it. Pull the developer clone first (`git -C <clones>/agent-index-marketplace-developer pull`) so the scripts match this task's version.
 
 ```
 # Windows
-powershell -ExecutionPolicy Bypass -File lib\release\release-prep.ps1 -Manifest .agent-index\release-<headline-tag>.json
-powershell -ExecutionPolicy Bypass -File lib\release\release-push.ps1 -Manifest .agent-index\release-<headline-tag>.json
+powershell -ExecutionPolicy Bypass -File <clones>\agent-index-marketplace-developer\lib\release\release-prep.ps1 -Manifest <install_root>\.agent-index\release-<headline-tag>.json
+powershell -ExecutionPolicy Bypass -File <clones>\agent-index-marketplace-developer\lib\release\release-push.ps1 -Manifest <install_root>\.agent-index\release-<headline-tag>.json
 # macOS/Linux
-bash lib/release/release-prep.sh .agent-index/release-<headline-tag>.json
-bash lib/release/release-push.sh .agent-index/release-<headline-tag>.json
+bash <clones>/agent-index-marketplace-developer/lib/release/release-prep.sh <install_root>/.agent-index/release-<headline-tag>.json
+bash <clones>/agent-index-marketplace-developer/lib/release/release-push.sh <install_root>/.agent-index/release-<headline-tag>.json
 ```
 
 **Branch-aware push (developer 1.13.0).** A release tag must point at the commit that lands on the repo's default branch. `release-push` checks which branch each repo has checked out:
@@ -135,12 +135,12 @@ Tell the developer which mode they are in. If the default branch is protected, r
 
 ```
 # Windows
-powershell -ExecutionPolicy Bypass -File lib\release\release-stage.ps1 -Manifest .agent-index\release-<headline-tag>.json -Channel <name>
+powershell -ExecutionPolicy Bypass -File <clones>\agent-index-marketplace-developer\lib\release\release-stage.ps1 -Manifest <install_root>\.agent-index\release-<headline-tag>.json -Channel <name>
 # macOS/Linux
-bash lib/release/release-stage.sh .agent-index/release-<headline-tag>.json --channel <name>
+bash <clones>/agent-index-marketplace-developer/lib/release/release-stage.sh <install_root>/.agent-index/release-<headline-tag>.json --channel <name>
 ```
 
-Tell them what it will do per repo (fast-forward; a repo whose channel already holds commits its branch lacks is left as is, or refused if it has changes unless they type `REPLACE`), that each repo returns to its starting branch afterwards, that it never tags, and the test-org steps it prints. When the candidate passes, walk them through **promote**: PR `channel/<name>` → default branch, merge, `release-push --tag-only`, then `git checkout <default> && git pull && git branch -D channel/<name>`. `--skip-preflight` / `-SkipPreflight` is for emergencies only; `--yes` / `-Yes` is for tests/CI only — never suggest either for a normal stage.
+Tell them what it will do per repo (fast-forward; a repo whose channel already holds commits its branch lacks is left as is, or refused if it has changes unless they type `REPLACE`), that each repo returns to its starting branch afterwards, that it never tags, and the test-org steps it prints. When the candidate passes, walk them through **promote**: PR `channel/<name>` → default branch, merge, `release-push --tag-only` **with the manifest for the whole candidate** (a manifest used for a partial re-stage lists only the repos staged in that run; promoting with it leaves the rest untagged -- bug `20261008-8d20ea22-195440-22bf`), then `git checkout <default> && git pull && git branch -D channel/<name>`. `--skip-preflight` / `-SkipPreflight` is for emergencies only; `--yes` / `-Yes` is for tests/CI only — never suggest either for a normal stage.
 
 Remind them the scripts run **natively** -- the agent neither builds nor pushes (esbuild needs the host binary; agent-side git over a synced mount tears commits).
 
