@@ -14,7 +14,7 @@ external_dependencies: []
 
 ## About This Skill
 
-Agent-index development knowledge lives in five documents spread across two directories: the standards spec, the collection authoring guide, the file format standards, the capability provider spec, and the filesystem adapter spec. A developer who needs to know "what provenance tier should I use for this parameter?" has to know which document to look in and which section covers it.
+Agent-index development knowledge lives in five documents spread across two directories: the marketplace eligibility requirements (`marketplace-eligibility.md`), the collection authoring guide, the file format standards, the capability provider spec, and the filesystem adapter spec. A developer who needs to know "what provenance tier should I use for this parameter?" has to know which document to look in and which section covers it.
 
 This skill eliminates that indirection. When a developer asks a question about how agent-index collections work, Claude searches the relevant documentation and provides a direct, accurate answer with the context needed to apply it. For non-technical developers, it translates specification language into practical guidance. For experienced authors, it provides precise spec references.
 

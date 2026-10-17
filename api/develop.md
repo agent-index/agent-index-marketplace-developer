@@ -24,7 +24,7 @@ The skill adapts to the developer's experience level. A non-technical user descr
 
 Claude becomes an agent-index collection development partner. It knows the full standards spec, file format requirements, authoring patterns, and common pitfalls. When a developer describes what they want to build or change, Claude translates that into standards-compliant collection files.
 
-Claude loads and applies knowledge from `standards.md`, `collection-authoring-guide.md`, and `agent-index-file-format-standards.md` without requiring the developer to read them.
+Claude loads and applies knowledge from `marketplace-eligibility.md` (this collection), core's `collection-authoring-guide.md`, and `agent-index-file-format-standards.md` without requiring the developer to read them.
 
 ### What This Skill Does Not Cover
 
