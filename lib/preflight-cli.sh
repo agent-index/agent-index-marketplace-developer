@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 # preflight-cli.sh — Mechanical preflight checks for a collection, in pure bash.
 #
-# Usage:  bash preflight-cli.sh --collection <path> [--quiet]
+# Usage:  bash preflight-cli.sh --collection <path> [--quiet] [--channel <name>]
+#   --channel <name>  stage mode (release-stage passes it): Check 12 also accepts a catalog version
+#                     that equals a sibling's collection.json/adapter.json on its local
+#                     origin/channel/<name> ref (read with git show; nothing is fetched or checked out)
 # Exits:  0 = pass (warnings OK), 1 = errors, 2 = invocation error
 #
 # No external dependencies beyond standard POSIX tools (grep, sed, awk, find, tr).
@@ -11,17 +14,23 @@ set -u
 
 QUIET=0
 COLL=""
+CHANNEL=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --collection) COLL="$2"; shift 2 ;;
         --quiet) QUIET=1; shift ;;
+        --channel) CHANNEL="${2:-}"; shift 2 ;;
         *) echo "Unknown arg: $1" >&2; exit 2 ;;
     esac
 done
 
 if [[ -z "$COLL" ]] || [[ ! -d "$COLL" ]]; then
-    echo "Usage: bash preflight-cli.sh --collection <path> [--quiet]" >&2
+    echo "Usage: bash preflight-cli.sh --collection <path> [--quiet] [--channel <name>]" >&2
+    exit 2
+fi
+if [[ -n "$CHANNEL" ]] && [[ ! "$CHANNEL" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]]; then
+    echo "invalid --channel name '$CHANNEL'" >&2
     exit 2
 fi
 
@@ -118,7 +127,7 @@ e4=${#ERRORS[@]}
 while IFS= read -r -d '' f; do
     # Look for CR (0x0D) in the file
     if grep -q $'\r' "$f"; then
-        err "  $(realpath --relative-to="$COLL" "$f"): contains CRLF"
+        err "  ${f#"$COLL"/}: contains CRLF"
     fi
 done < <(find "$COLL" -name '*.sh' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -print0)
 log "  errors: $(( ${#ERRORS[@]} - e4 ))"
@@ -130,13 +139,13 @@ while IFS= read -r -d '' f; do
     opens=$(grep -o '{' "$f" | wc -l)
     closes=$(grep -o '}' "$f" | wc -l)
     if [[ "$opens" != "$closes" ]]; then
-        err "  $(realpath --relative-to="$COLL" "$f"): unbalanced braces (opens=$opens, closes=$closes)"
+        err "  ${f#"$COLL"/}: unbalanced braces (opens=$opens, closes=$closes)"
     fi
     # Last non-empty char should be } or ]
     lastchar=$(tail -c 100 "$f" | tr -d '[:space:]' | tail -c 1)
     case "$lastchar" in
         '}'|']') ;;
-        *) err "  $(realpath --relative-to="$COLL" "$f"): doesn't end with } or ] (last char: '$lastchar')" ;;
+        *) err "  ${f#"$COLL"/}: doesn't end with } or ] (last char: '$lastchar')" ;;
     esac
 done < <(find "$COLL" -name '*.json' -not -path '*/node_modules/*' -not -path '*/.git/*' -print0)
 log "  errors: $(( ${#ERRORS[@]} - e5 ))"
@@ -150,7 +159,7 @@ while IFS= read -r -d '' f; do
     lastchar=$(echo -n "$tail40" | tail -c 1)
     # Suspicious: alphanumeric tail with no terminal punctuation
     if [[ "$tail40" =~ [a-zA-Z]{4,}$ ]] && [[ ! "$lastchar" =~ [.!?:\;\`\"\'\)\]\}\>\-] ]]; then
-        rel=$(realpath --relative-to="$COLL" "$f")
+        rel=${f#"$COLL"/}
         warn "  $rel: ends mid-word — last chars: \"$tail40\""
     fi
 done < <(find "$COLL" -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' -print0)
@@ -170,7 +179,7 @@ while IFS= read -r -d '' f; do
     me_count=$(grep '^module\.exports\s*=' "$f" 2>/dev/null | wc -l | tr -d ' ')
     me_count=${me_count:-0}
     if [[ "$me_count" -gt 1 ]]; then
-        rel=$(realpath --relative-to="$COLL" "$f")
+        rel=${f#"$COLL"/}
         err "  $rel: $me_count top-level 'module.exports =' lines (suspected debris from a botched write — file may have content past its apparent end)"
         continue
     fi
@@ -178,7 +187,7 @@ while IFS= read -r -d '' f; do
     # Duplicate top-level function declarations (function foo(...))
     dup_fns=$(grep -E '^function [a-zA-Z_$][a-zA-Z0-9_$]*\s*\(' "$f" 2>/dev/null | sort | uniq -d)
     if [[ -n "$dup_fns" ]]; then
-        rel=$(realpath --relative-to="$COLL" "$f")
+        rel=${f#"$COLL"/}
         first_dup=$(echo "$dup_fns" | head -1)
         err "  $rel: duplicate top-level function declaration ($first_dup) — suspected debris"
         continue
@@ -233,7 +242,7 @@ else
             line=$(grep -nE '"inherit"[[:space:]]*:[[:space:]]*false|^[[:space:]]*inherit:[[:space:]]*false' "$f" 2>/dev/null | head -1)
             if [[ -n "$line" ]]; then
                 lineno=$(echo "$line" | cut -d: -f1)
-                rel=$(realpath --relative-to="$COLL" "$f")
+                rel=${f#"$COLL"/}
                 warn "  $rel:$lineno — uses inherit:false but adapter contract is $adapter_contract (requires 2.0.0+; pre-2.0 adapters silently ignore inherit)"
             fi
         done < <(find "$COLL/api" -maxdepth 2 -name '*.md' -print0 2>/dev/null)
@@ -337,7 +346,7 @@ sentinel_fail() {
     fi
 }
 while IFS= read -r -d '' f; do
-    rel=$(realpath --relative-to="$COLL" "$f")
+    rel=${f#"$COLL"/}
     tailtxt=$(tail -c 300 "$f" | sed 's/[[:space:]]*$//')
     case "$f" in
         *.md)
@@ -369,6 +378,8 @@ log "  errors: $(( ${#ERRORS[@]} - e11 )), warnings: $(( ${#WARNINGS[@]} - w11 )
 #   - no v{version} tag, but version == the clone's OWN collection.json/adapter.json
 #     version                                        → OK (in-flight release; push
 #                                                        creates the tag — not a phantom)
+#   - --channel <name> and version == the clone's origin/channel/<name> collection.json/adapter.json
+#     version                                        → OK (staged candidate; partial re-stage)
 #   - no v{version} tag AND version != clone's version → ERROR (true phantom)
 #
 # Only runs when a resource-listings directory is reachable; inert otherwise.
@@ -407,8 +418,20 @@ for RLDIR in "${CATALOG_DIRS[@]+"${CATALOG_DIRS[@]}"}"; do
                         [[ -n "$own" ]] && break
                     fi
                 done
+                # Stage mode (--channel): a sibling that is not part of this (partial) stage run may be
+                # back on main while the channel holds its candidate. Read its version from the local
+                # origin/channel/<name> ref, read-only (bug 20261008-8d20ea22-195439-2ca6).
+                chv=""
+                if [[ -n "$CHANNEL" ]] && git -C "$cdir" rev-parse -q --verify "refs/remotes/origin/channel/$CHANNEL" >/dev/null 2>&1; then
+                    for vf in collection.json adapter.json; do
+                        chv=$(git -C "$cdir" show "refs/remotes/origin/channel/$CHANNEL:$vf" 2>/dev/null | grep -m1 '"version"' | sed -E 's/.*"version"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+                        [[ -n "$chv" ]] && break
+                    done
+                fi
                 if [[ -n "$own" && "$own" == "$ver" ]]; then
                     log "  $dj: $clone current_version $ver has no tag yet but matches the clone's working version — in-flight release (tag lands on push), OK"
+                elif [[ -n "$chv" && "$chv" == "$ver" ]]; then
+                    log "  $dj: $clone current_version $ver has no tag yet but matches origin/channel/$CHANNEL — staged candidate, OK"
                 else
                     have=$(git -C "$cdir" tag 2>/dev/null | tr '\n' ' ')
                     err "  $dj: $clone advertises current_version $ver but no released git tag v$ver exists and it does not match the clone's working version ($own) (phantom version — cataloged release was never tagged; bug catalogphantomversion). Tags present: $have"
@@ -530,6 +553,12 @@ while IFS= read -r f; do
     # line ends in an alphanumeric char with no terminal punctuation/sentinel. This is the
     # signature that a trailing-newline-only check masks (C.1.5.0: apply-updates/publish-updates).
     lastline=$(grep -v '^[[:space:]]*$' "$f" | tail -n1)
+    # A file that ends with a newline and closes on a block terminator (fi, done, esac, end, })
+    # is complete, not truncated (bug 20260902-68dff8bf-145243-6f32).
+    if [[ -z "$(tail -c1 "$f")" ]]; then
+        lasttok="${lastline%"${lastline##*[![:space:]]}"}"; lasttok="${lasttok##*[[:space:];]}"
+        case "$lasttok" in fi|done|esac|end|'}') continue ;; esac
+    fi
     if [[ "$lastline" =~ [A-Za-z0-9]$ ]] && ! grep -q 'AIFS:FILE-END' "$f"; then
         warn "  $f last line ends mid-word with no terminator/sentinel (likely truncated): ...${lastline: -48}"
         nl_bad=$((nl_bad+1))

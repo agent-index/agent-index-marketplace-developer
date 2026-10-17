@@ -15,7 +15,8 @@ prep/push logic now lives in committed, version-controlled scripts; the `release
   the branch `channel/<name>` in every repo of the manifest so a test org on that distribution
   channel can install it BEFORE anything is tagged. See "Stage -> test -> promote" below.
 - `release-push.ps1` / `release-push.sh` -- the irreversible phase: **pre-push diff + integrity
-  gate** (per repo: `git diff --stat`/full diff for operator review; integrity guard flags a lost
+  gate** (per repo: `git status --porcelain` -- new untracked files included, since the commit uses
+  `git add -A` -- plus `git diff --stat`/full diff for operator review; integrity guard flags a lost
   `AIFS:FILE-END` sentinel vs HEAD, a text file with no trailing newline -- the torn-write signature
   that truncated create-org.md -- and a non-HTTPS `origin`), CHANGELOG date-stamp at push, then
   per-repo commit -> push -> tag `v<version>` in `push_order` (resource-listings LAST; an existing
@@ -51,7 +52,8 @@ for them (no adapter steps when adapters are untouched).
 `release-stage` takes the same manifest plus a channel name (`^[a-z0-9][a-z0-9-]{0,39}$`; branch
 `channel/<name>`). Gates first, before any write: the name, no `.git/index.lock` in any repo (it
 refuses rather than deleting a lock), an `origin` remote, a checked-out branch, and the same
-preflight invocation `release-prep` uses (skip with `--skip-preflight` / `-SkipPreflight` only in an
+preflight invocation `release-prep` uses, plus `--channel <name>` so Check 12 accepts a sibling's
+version from its `origin/channel/<name>` when that sibling is not in this (partial) manifest (skip with `--skip-preflight` / `-SkipPreflight` only in an
 emergency; it prints a loud warning). Then, per repo in `push_order` (catalogs last):
 
 - **Already on `channel/<name>`** (iterating): show `git status --short` + diff stat, confirm,
@@ -81,7 +83,8 @@ channel" in `edit-org`), refresh clones, "publish our org updates". Iterate: `gi
 channel/<name>` in the repos you're changing, edit, re-run stage. Untouched repos are left as is.
 
 **Promote** when the candidate passes, per repo (code repos first, listings last): open a PR
-`channel/<name>` -> default branch and merge it; run `release-push --tag-only`; then
+`channel/<name>` -> default branch and merge it; run `release-push --tag-only` with the manifest for the
+WHOLE candidate (a partial re-stage's manifest lists only the repos staged in that run); then
 `git checkout <default> && git pull && git branch -D channel/<name>`. Run `release-prep` before promoting if stage ran with
 `--skip-preflight` or anything changed since.
 
@@ -89,6 +92,9 @@ channel/<name>` in the repos you're changing, edit, re-run stage. Untouched repo
 stage.
 
 ## Run (host-native; the agent never pushes)
+Run these from your clone of `agent-index-marketplace-developer` (paths below are relative to it).
+Other `lib/release/` copies -- e.g. one in a member install -- can be older and miss fixes such as
+the branch-aware push; do not run them (bug 20261012-6b8d7f00-110420-1670).
 ```
 # Windows
 powershell -ExecutionPolicy Bypass -File lib\release\release-prep.ps1 -Manifest .agent-index\release-c150.json
