@@ -52,6 +52,8 @@ On demand, or automatically after develop skill operations when `auto_preflight`
 
 Read the collection directory. Confirm `collection.json` exists and is valid JSON.
 
+**Adapter repos (DC-001).** A filesystem adapter repo has `adapter.json` and no `collection.json`. Don't stop: take the name and version from `adapter.json` and run only the checks that apply to an adapter: shell line endings and JSON validity, the adapter bundle checks in Step 4 (freshness, supported ops, and tool and argument coverage), and the trailing-newline guard. Skip the collection-only steps (frontmatter, setup templates, api[] and catalog checks). This matches `lib/preflight-cli.sh` adapter mode (Checks 4, 5, 7, 14, 15, 18).
+
 Parse `collection.json` and extract: name, version, api array, dependencies, category.
 
 Read the `/setup/collection-setup.md` and all files in `/api/`.
@@ -186,6 +188,16 @@ If `adapter.json` declares `supported_operations`, every op name listed must act
 
 The check is grep-based rather than AST-based for portability — the bundle could be in any of several JS bundling formats, and parsing it correctly is much more work than substring-matching. False positives from substring matching are theoretically possible (e.g., "share" appears in some unrelated comment) but extremely unlikely to coincide with all the v2.0 op names simultaneously. The check is asymmetric: false positives (claiming the bundle has an op when it doesn't) are the dangerous case; false negatives (incorrectly flagging a bundle that does have the op under a name we don't recognize) are recoverable by adjusting the search patterns.
 
+**Tool and argument coverage (DC-001; `lib/preflight-cli.sh` Check 18):**
+
+Every tool the executor accepts, and every argument it reads, must be written down where an agent will look. The code is the source of truth: each `case 'aifs_*'` in `routeToolCall` (`src/exec.mjs`) is a tool, and that case's `args.X` reads are its arguments.
+
+- [ ] Run `bash src/aifs-exec.sh --help`. Every routed tool must appear, and each tool's `{...}` signature must name every argument it reads. A word in the tool's description doesn't count. Missing tool or argument: ERROR.
+- [ ] Run `node dist/aifs-exec.bundle.js --help` (JSON). Every routed tool must be in `tools`, and `arguments.{tool}` must name every argument it reads. No `arguments` map, or a tool or argument missing from it: ERROR.
+- [ ] In the sibling `agent-index-filesystem/SPEC.md`, every routed tool needs a `### aifs_*` section. Missing: WARNING (SPEC.md is a separate repo with its own release). No sibling clone: WARNING that it wasn't checked.
+
+Both `--help` surfaces are what an agent reads at runtime, which is why a gap there is an error. This would have caught bugs `f848` (help listed 9 of 16 tools), `e428` (`content_file` / `content_stdin` undocumented) and `f989` (`name_contains`). The CLI implementation is `lib/check-tool-coverage.mjs`.
+
 **Shipped shell-script line endings (added in preflight v1.2.3, closes bug `20260504-8d20ea22-7`):**
 
 Shell scripts shipped in a collection's runtime artifact directories must have LF line endings, regardless of the host OS the author is committing from. Pre-1.2.3 nothing prevented a Windows-host commit from including `\r\n` line endings in `*.sh` files; the resulting script fails to execute under bash with a confusing error (`bash: script.sh: $'\r': command not found`). The 2026-05-04 helper smoke-test on dev_install hit this exact failure — `mcp-servers/permission-helper/show-plan.sh` shipped with CRLF and bash refused it.
@@ -247,6 +259,21 @@ Implemented in `lib/preflight-cli.sh` as Check 8.
 - [ ] For each API member's manifest, verify `collection_version` exactly equals the `version` field in `collection.json`. Each release should bump every manifest's `collection_version` to the new collection version so consumers reading the manifest can correctly attribute the capability to its release. ERROR with the path and the two values when they disagree. (Authors who bump `collection.json` `version` without re-running their manifest-sync step are the typical cause.)
 
 The two checks above are paired: together they catch both *vertical* drift (manifest version vs `.md` frontmatter version, the per-capability version) and *horizontal* drift (manifest `collection_version` vs `collection.json` `version`, the collection-level version). Both are forms of "two declared facts that must agree" — the same hazard class as bug `20260430-8d20ea22` (where a comparison read the wrong version field). Closes developer-collection idea `per-capability-manifest-vs-md-version-drift`.
+
+**Citations resolve (DC-001; `lib/preflight-cli.sh` Check 19; all repos, adapters included):**
+
+The citation rule (CI-013) is `{doc} § "Exact Heading"`, never a line number.
+- [ ] Every `{doc}.md § "Heading"` in the repo's `*.md`, `*.json` and `*.sh` files matches a heading in that document. Look the document up in this repo first, then in sibling `agent-index-*` clones; `CLAUDE.md` means `.claude/CLAUDE.md.template`. Heading not found: ERROR. Document not found anywhere: WARNING (not checked).
+- [ ] No line-number citations: `{doc}.md line N`, `{doc}.md lines N` or `{doc}.md:N` is an ERROR. Line numbers move with every edit.
+- [ ] Skip `CHANGELOG.md`: it records the documents as they were. Skip placeholder examples that explain the rule (`§ "Exact Heading"`).
+- [ ] **Results depend on which sibling repos are cloned.** A citation into another repo is only checked when that repo is cloned beside this one (e.g. core's citations of the developer collection's `marketplace-eligibility.md` need `agent-index-marketplace-developer/` next to core). Without it they become one "not checked" WARNING, not errors. A generic name (`README.md`, `SPEC.md`) cited without a repo prefix resolves in this repo first, then to the first sibling clone (alphabetically) that has a file by that name; prefix the repo (e.g. `agent-index-filesystem/SPEC.md`) when it matters. Run preflight with the sibling clones present for a full check (release-prep does).
+- [ ] Citations are checked in `*.md`, `*.sh` and `*.json` files (in JSON, escaped quotes `§ \"Heading\"` are unescaped first).
+
+**One home per rule (DC-001; Check 20; agent-index-core only):**
+- [ ] No heading appears in both `.claude/CLAUDE.md.template` and `runtime-reference.md` or `admin-distribution.md`. A rule stated in two places drifts (that is how CLAUDE.md and standards.md diverged). Duplicate: ERROR.
+
+**Triggers route to their own entry (DC-001; Check 21):**
+- [ ] For every object entry in `collection.json` `api[]`, each `triggers[]` item's `capability` equals the entry's `name`. A mismatch: ERROR (routing would send the phrase to a different capability than the one that declares it).
 
 **Capability provider references (if applicable):**
 - [ ] If `collection.json` has a `provides` array, every `implemented_by` value references a name in the `api` array
@@ -449,6 +476,7 @@ These checks only run at `marketplace` strictness:
 - [ ] Collection name does not conflict with any known marketplace collection name
 - [ ] `ROADMAP.md` exists (recommended for marketplace collections)
 - [ ] README includes clear installation prerequisites and any external system requirements
+- [ ] Every `collection.json` `api[]` entry is an object (`{"name": ..., "triggers": [...]}`), not a plain string. A plain-string entry can't carry triggers, so members can only reach it by `@ai:` alias: WARNING (DC-001; CLI Check 21 reports it at every strictness).
 
 **On success:** Proceed to Step 10.
 **On failure:** Record marketplace-specific issues.

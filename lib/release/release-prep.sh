@@ -77,11 +77,10 @@ for f in glob.glob(os.path.join(path,'api','*-manifest.json')):
 PY
   fi
   # 3. preflight HARD GATE (after stamping, so Check 2 sees aligned manifests) (errors abort).
-  # preflight-cli needs collection.json; for an adapter repo the checksum + node --check gate above
-  # is the verification (it is what preflight Check 14 checks).
-  if [ "$kind" = "adapter" ]; then echo "  (adapter repo: preflight-cli needs collection.json -- checksum gate above is the verification)"; echo "  OK prep $name"; continue; fi
+  # Adapter repos run too: preflight-cli's adapter mode (DC-001) runs Checks 4, 5, 7, 14, 15 and
+  # 18 (every tool and argument the executor accepts is documented in both --help surfaces).
   if ! bash "$PREFLIGHT" --collection "$path" >/tmp/pf.$$ 2>&1; then
-    echo "  FAIL: preflight errors:"; grep -E '✗|error' /tmp/pf.$$ | head; fail=1; rm -f /tmp/pf.$$; continue
+    echo "  FAIL: preflight errors:"; sed -n '/^✗ [0-9]* error(s):/,/^⚠ /p' /tmp/pf.$$ | grep -v '^⚠ ' | head -20; fail=1; rm -f /tmp/pf.$$; continue
   fi
   rm -f /tmp/pf.$$
   echo "  OK prep $name"

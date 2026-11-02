@@ -2,6 +2,9 @@
 # preflight-cli.sh — Mechanical preflight checks for a collection, in pure bash.
 #
 # Usage:  bash preflight-cli.sh --collection <path> [--quiet] [--channel <name>]
+#   <path> is a collection repo (collection.json) or a filesystem adapter repo
+#   (adapter.json, no collection.json). Adapter mode (DC-001) runs the checks that
+#   apply to adapters: 4, 5, 7, 14, 15, 18 and 19.
 #   --channel <name>  stage mode (release-stage passes it): Check 12 also accepts a catalog version
 #                     that equals a sibling's collection.json/adapter.json on its local
 #                     origin/channel/<name> ref (read with git show; nothing is fetched or checked out)
@@ -35,9 +38,14 @@ if [[ -n "$CHANNEL" ]] && [[ ! "$CHANNEL" =~ ^[a-z0-9][a-z0-9-]{0,39}$ ]]; then
 fi
 
 COLL="$(cd "$COLL" && pwd)"
+MODE=collection
 if [[ ! -f "$COLL/collection.json" ]]; then
-    echo "✗ collection.json not found at $COLL" >&2
-    exit 2
+    if [[ -f "$COLL/adapter.json" ]]; then
+        MODE=adapter   # filesystem adapter repo (DC-001): no collection.json, version in adapter.json
+    else
+        echo "✗ collection.json not found at $COLL (and no adapter.json, so not an adapter repo either)" >&2
+        exit 2
+    fi
 fi
 
 # ── Parse collection.json (no jq) ───────────────────────────────────────────
@@ -49,11 +57,12 @@ get_json_field() {
     grep -m1 "\"$field\":" "$file" | sed 's/.*"'"$field"'":[[:space:]]*"\([^"]*\)".*/\1/'
 }
 
-COLL_NAME=$(get_json_field "$COLL/collection.json" name)
-COLL_VERSION=$(get_json_field "$COLL/collection.json" version)
+MANIFEST="$COLL/collection.json"; [[ "$MODE" == "adapter" ]] && MANIFEST="$COLL/adapter.json"
+COLL_NAME=$(get_json_field "$MANIFEST" name)
+COLL_VERSION=$(get_json_field "$MANIFEST" version)
 
 if [[ -z "$COLL_VERSION" ]]; then
-    echo "✗ could not parse version from $COLL/collection.json" >&2
+    echo "✗ could not parse version from $MANIFEST" >&2
     exit 2
 fi
 
@@ -65,7 +74,10 @@ err() { ERRORS+=("$1"); }
 warn() { WARNINGS+=("$1"); }
 
 log "preflight: $COLL_NAME v$COLL_VERSION at $COLL"
+[[ "$MODE" == "adapter" ]] && log "mode: adapter (adapter.json) — running Checks 4, 5, 7, 14, 15, 18, 19"
 log ""
+
+if [[ "$MODE" == "collection" ]]; then
 
 # ── Check 1: frontmatter version <-> manifest version ───────────────────────
 log "Check 1: .md frontmatter version <-> *-manifest.json version"
@@ -121,6 +133,10 @@ else
 fi
 log "  errors: $(( ${#ERRORS[@]} - e3 ))"
 
+else
+    log "Checks 1-3: skipped (adapter mode)"
+fi
+
 # ── Check 4: *.sh files have LF line endings ────────────────────────────────
 log "Check 4: *.sh files have LF line endings (no CRLF)"
 e4=${#ERRORS[@]}
@@ -150,6 +166,8 @@ while IFS= read -r -d '' f; do
 done < <(find "$COLL" -name '*.json' -not -path '*/node_modules/*' -not -path '*/.git/*' -print0)
 log "  errors: $(( ${#ERRORS[@]} - e5 ))"
 
+if [[ "$MODE" == "collection" ]]; then
+
 # ── Check 6: mid-word truncation heuristic for *.md files ───────────────────
 log "Check 6: *.md mid-word truncation heuristic"
 w6=${#WARNINGS[@]}
@@ -164,6 +182,10 @@ while IFS= read -r -d '' f; do
     fi
 done < <(find "$COLL" -name '*.md' -not -path '*/node_modules/*' -not -path '*/.git/*' -print0)
 log "  warnings: $(( ${#WARNINGS[@]} - w6 ))"
+
+else
+    log "Check 6: skipped (adapter mode)"
+fi
 
 # ── Check 7: JS-integrity heuristic for *.js files (added in v1.3.1) ────────
 # Catches the "validate.js debris" corruption class: a file ends cleanly at one
@@ -194,6 +216,8 @@ while IFS= read -r -d '' f; do
     fi
 done < <(find "$COLL" -name '*.js' -not -path '*/node_modules/*' -not -path '*/.git/*' -not -path '*/dist/*' -print0)
 log "  errors: $(( ${#ERRORS[@]} - e7 ))"
+
+if [[ "$MODE" == "collection" ]]; then
 
 # ── Check 8: inherit:false spec vs adapter contract version (added in v1.4.0) ─
 # Catches forward-compat regressions: spec emits `inherit: false` but the org's
@@ -508,6 +532,10 @@ else
 fi
 log "  errors: $(( ${#ERRORS[@]} - e13 )), warnings: $(( ${#WARNINGS[@]} - w13 ))"
 
+else
+    log "Checks 8-13: skipped (adapter mode)"
+fi
+
 # ── Check 14: adapter build integrity (v1.7.0) ──────────────────────────────
 # When the repo is an adapter (adapter.json present): the stamped exec_bundle_checksum
 # must equal sha256 over the built bundle, and the bundle must pass node --check.
@@ -566,6 +594,8 @@ while IFS= read -r f; do
 done < <(find "$COLL" -type f \( -name '*.md' -o -name '*.sh' -o -name '*.js' -o -name '*.json' \) -not -path '*/node_modules/*' -not -path '*/.git/*')
 [[ $nl_bad -eq 0 ]] && log "  OK: all scanned text files end with a newline"
 log "  errors: $(( ${#ERRORS[@]} - e15 )), warnings: $(( ${#WARNINGS[@]} - w15 ))"
+
+if [[ "$MODE" == "collection" ]]; then
 
 # ── Check 16: spec-doc currency headers (added in preflight task v1.8.0) ────
 # marketplace-eligibility.md § "Spec Document Currency": root-level spec/guide docs declare
@@ -673,6 +703,92 @@ if [[ -f "$COLL/collaborative-acls.json" ]] && grep -qE '"grants"[[:space:]]*:' 
     warn "  collaborative-acls.json: uses the legacy \"grants\" key — rename to \"acls\" (and \"purpose\" → \"rationale\"); install-collection < 2.4.0 ignores grants[]"
 fi
 log "  errors: $(( ${#ERRORS[@]} - e17 )), warnings: $(( ${#WARNINGS[@]} - w17 ))"
+
+else
+    log "Checks 16-17: skipped (adapter mode)"
+fi
+
+# ── Check 18: tool and argument coverage (adapter repos; DC-001) ────────────
+# Every tool routeToolCall accepts (src/exec.mjs) and every argument it reads must be
+# documented in the wrapper --help and the executor's JSON --help (ERROR: the surfaces
+# an agent reads at runtime) and have a "### aifs_X" section in the sibling
+# agent-index-filesystem/SPEC.md (WARNING: separate repo, own release). Implemented in
+# lib/check-tool-coverage.mjs, which reads the code, runs both --help commands and
+# prints ERROR/WARN lines. Would have caught bugs f848 (help listed 9 of 16 tools),
+# e428 (content_file/content_stdin undocumented) and f989 (name_contains).
+log "Check 18: tool and argument coverage (adapter repos)"
+e18=${#ERRORS[@]}; w18=${#WARNINGS[@]}
+if [[ "$MODE" != "adapter" ]]; then
+    log "  skipped: not an adapter repo"
+elif ! command -v node >/dev/null 2>&1; then
+    warn "  node not available; skipped tool/argument coverage (Check 18)"
+else
+    CHECK18="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-tool-coverage.mjs"
+    if [[ ! -f "$CHECK18" ]]; then
+        warn "  lib/check-tool-coverage.mjs not found next to preflight-cli.sh; skipped Check 18"
+    else
+        # Capture output AND exit code: a helper that crashes prints a stack trace and no
+        # ERROR lines, which must fail the check rather than read as "OK" (developer#10 review).
+        out18=$(node "$CHECK18" "$COLL" 2>&1); rc18=$?
+        while IFS= read -r line; do
+            case "$line" in
+                "ERROR "*) err "  ${line#ERROR }" ;;
+                "WARN "*)  warn "  ${line#WARN }" ;;
+                "INFO "*)  log "  ${line#INFO }" ;;
+            esac
+        done <<< "$out18"
+        if [[ $rc18 -ne 0 ]]; then
+            err "  Check 18 helper failed (exit $rc18), so coverage was not checked: $(printf '%s\n' "$out18" | grep -m1 -E 'Error|error:' || printf '%s\n' "$out18" | grep -m1 -E '[A-Za-z]')"
+        fi
+        [[ ${#ERRORS[@]} -eq $e18 ]] && log "  OK: every routed tool and argument is documented in both --help surfaces"
+    fi
+fi
+log "  errors: $(( ${#ERRORS[@]} - e18 )), warnings: $(( ${#WARNINGS[@]} - w18 ))"
+
+# ── Checks 19–21: citations, duplicate headings, api[] entries (DC-001 PR 2) ─
+# Implemented in lib/check-docs.mjs (prints ERROR/WARN/INFO lines).
+#   19 (all repos)  every {doc}.md § "Heading" resolves to a real heading (this repo, then
+#                   sibling agent-index-* clones; CLAUDE.md -> .claude/CLAUDE.md.template);
+#                   line-number citations ({doc}.md line N / {doc}.md:N) are errors;
+#                   CHANGELOG.md is skipped (historical record). Missing heading or line
+#                   citation: ERROR. Cited document not found: WARNING.
+#   20 (core)       no heading in both .claude/CLAUDE.md.template and runtime-reference.md /
+#                   admin-distribution.md, so each rule has one home. ERROR.
+#   21 (collections) plain-string api[] entries can't carry triggers: WARNING. A trigger
+#                   whose capability isn't its entry's name: ERROR.
+CHECK_DOCS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-docs.mjs"
+run_docs_check() { # run_docs_check NUM TITLE APPLIES(yes|no) SKIPMSG
+    local num="$1" title="$2" applies="$3" skipmsg="$4"
+    log "Check $num: $title"
+    local e0=${#ERRORS[@]} w0=${#WARNINGS[@]}
+    if [[ "$applies" != "yes" ]]; then
+        log "  skipped: $skipmsg"
+    elif ! command -v node >/dev/null 2>&1; then
+        warn "  node not available; skipped Check $num ($title)"
+    elif [[ ! -f "$CHECK_DOCS" ]]; then
+        warn "  lib/check-docs.mjs not found next to preflight-cli.sh; skipped Check $num"
+    else
+        # Same rule as Check 18: a helper that crashes is an ERROR, not a pass.
+        local out rc
+        out=$(node "$CHECK_DOCS" "$num" "$COLL" 2>&1); rc=$?
+        while IFS= read -r line; do
+            case "$line" in
+                "ERROR "*) err "  ${line#ERROR }" ;;
+                "WARN "*)  warn "  ${line#WARN }" ;;
+                "INFO "*)  log "  ${line#INFO }" ;;
+            esac
+        done <<< "$out"
+        if [[ $rc -ne 0 ]]; then
+            err "  Check $num helper failed (exit $rc), so it was not checked: $(printf '%s\n' "$out" | grep -m1 -E 'Error|error:' || printf '%s\n' "$out" | grep -m1 -E '[A-Za-z]')"
+        fi
+    fi
+    log "  errors: $(( ${#ERRORS[@]} - e0 )), warnings: $(( ${#WARNINGS[@]} - w0 ))"
+}
+run_docs_check 19 'citations resolve; no line-number citations' yes ''
+IS_CORE=no; [[ "$MODE" == "collection" && -f "$COLL/.claude/CLAUDE.md.template" ]] && IS_CORE=yes
+run_docs_check 20 'no heading in both CLAUDE.md.template and the reference documents (core)' "$IS_CORE" 'not core'
+IS_COLL=no; [[ "$MODE" == "collection" ]] && IS_COLL=yes
+run_docs_check 21 'api[] entries: object form; triggers route to their own entry' "$IS_COLL" 'adapter mode'
 
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
