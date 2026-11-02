@@ -768,13 +768,19 @@ run_docs_check() { # run_docs_check NUM TITLE APPLIES(yes|no) SKIPMSG
     elif [[ ! -f "$CHECK_DOCS" ]]; then
         warn "  lib/check-docs.mjs not found next to preflight-cli.sh; skipped Check $num"
     else
+        # Same rule as Check 18: a helper that crashes is an ERROR, not a pass.
+        local out rc
+        out=$(node "$CHECK_DOCS" "$num" "$COLL" 2>&1); rc=$?
         while IFS= read -r line; do
             case "$line" in
                 "ERROR "*) err "  ${line#ERROR }" ;;
                 "WARN "*)  warn "  ${line#WARN }" ;;
                 "INFO "*)  log "  ${line#INFO }" ;;
             esac
-        done < <(node "$CHECK_DOCS" "$num" "$COLL" 2>&1)
+        done <<< "$out"
+        if [[ $rc -ne 0 ]]; then
+            err "  Check $num helper failed (exit $rc), so it was not checked: $(printf '%s\n' "$out" | grep -m1 -E 'Error|error:' || printf '%s\n' "$out" | grep -m1 -E '[A-Za-z]')"
+        fi
     fi
     log "  errors: $(( ${#ERRORS[@]} - e0 )), warnings: $(( ${#WARNINGS[@]} - w0 ))"
 }
