@@ -727,13 +727,19 @@ else
     if [[ ! -f "$CHECK18" ]]; then
         warn "  lib/check-tool-coverage.mjs not found next to preflight-cli.sh; skipped Check 18"
     else
+        # Capture output AND exit code: a helper that crashes prints a stack trace and no
+        # ERROR lines, which must fail the check rather than read as "OK" (developer#10 review).
+        out18=$(node "$CHECK18" "$COLL" 2>&1); rc18=$?
         while IFS= read -r line; do
             case "$line" in
                 "ERROR "*) err "  ${line#ERROR }" ;;
                 "WARN "*)  warn "  ${line#WARN }" ;;
                 "INFO "*)  log "  ${line#INFO }" ;;
             esac
-        done < <(node "$CHECK18" "$COLL" 2>&1)
+        done <<< "$out18"
+        if [[ $rc18 -ne 0 ]]; then
+            err "  Check 18 helper failed (exit $rc18), so coverage was not checked: $(printf '%s\n' "$out18" | grep -m1 -E 'Error|error:' || printf '%s\n' "$out18" | grep -m1 -E '[A-Za-z]')"
+        fi
         [[ ${#ERRORS[@]} -eq $e18 ]] && log "  OK: every routed tool and argument is documented in both --help surfaces"
     fi
 fi

@@ -156,7 +156,7 @@ else
     # Same invocation release-prep uses, plus --channel: a sibling NOT in this manifest (partial re-stage)
     # may be back on main; Check 12 then reads its version from origin/$BR (bug 20261008-8d20ea22-195439-2ca6).
     if ! bash "$PREFLIGHT" --collection "$p" --channel "$CH" >/tmp/pf.$$ 2>&1; then
-      echo "  FAIL $n: preflight errors:"; grep -E '✗|error' /tmp/pf.$$ | head | sed 's/^/    /'; pf_fail=1
+      echo "  FAIL $n: preflight errors:"; sed -n '/^✗ [0-9]* error(s):/,/^⚠ /p' /tmp/pf.$$ | grep -v '^⚠ ' | head -20 | sed 's/^/    /'; pf_fail=1
     else
       echo "  ok $n: preflight passed"
     fi
