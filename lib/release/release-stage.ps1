@@ -172,7 +172,8 @@ if ($SkipPreflight) {
   $pfFail = $false
   foreach ($n in $order) {
     $p = $paths[$n]
-    if (-not (Test-Path (Join-Path $p "collection.json"))) { Write-Host "  ${n}: no collection.json (adapter or catalog repo) -- preflight not applicable, skipped"; continue }
+    # adapter repos (adapter.json) run in preflight-cli's adapter mode (DC-001)
+    if (-not (Test-Path (Join-Path $p "collection.json")) -and -not (Test-Path (Join-Path $p "adapter.json"))) { Write-Host "  ${n}: no collection.json or adapter.json (catalog repo) -- preflight not applicable, skipped"; continue }
     # Same invocation release-prep uses, plus --channel: a sibling NOT in this manifest (partial re-stage)
     # may be back on main; Check 12 then reads its version from origin/$br (bug 20261008-8d20ea22-195439-2ca6).
     $bashColl = ConvertTo-BashPath ((Resolve-Path $p).Path)
