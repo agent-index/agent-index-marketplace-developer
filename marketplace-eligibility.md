@@ -87,6 +87,7 @@ The following fields are optional. If omitted, the collection is assumed to neit
 |---|---|---|
 | `provides` | array | Capability types this collection implements. Each entry declares a capability type, version, and operation-to-skill mapping. Empty array or absent if none. See Capability Provider Requirements below. |
 | `requires` | array | Capability types this collection needs from other providers. Each entry declares a capability type, required version range, operations needed, and fallback behavior. Empty array or absent if none. See Capability Provider Requirements below. |
+| `requires_adapter` | object | The minimum filesystem adapter per backend this collection's task files need, e.g. `{"gdrive": "2.12.0", "onedrive": "2.8.0"}`. Required when task files address org locations by plain path (§ "Addressing Org Locations"). install-collection, upgrade-collection and publish-updates refuse the collection on an org whose deployed adapter is older, and apply-updates holds its updates back for a member whose own adapter is older. |
 
 ---
 
@@ -283,6 +284,18 @@ replaced **wholesale** on every collection upgrade, so anything a collection sto
 This rule predates 3.29.0 — `api/author-collection.md` has stated it under "Local directory
 structure" — and is promoted here to normative status because core's wholesale replacement of
 `apps/` now depends on it.
+
+---
+
+## Addressing Org Locations
+
+Since core 4.2.0 with filesystem adapter gdrive 2.12.0 / onedrive 2.8.0, the executor resolves the org's locations for every member, so task files name them **by plain path, the same on every backend**:
+
+- `/org-config.json` and `/members-registry.json`
+- `/shared/...` (the org's shared root)
+- `/{collection}/...` for any installed collection, including `/{collection}/setup/collection-setup-responses.md`
+
+Don't write per-backend addressing instructions ("on Google Drive read by id anchor…, on OneDrive by path…") or id lookups (`id:{folder_id}`, `id:{shared_root}`, `id:{org_config_id}`) for these locations. `id:` addresses are only for content outside them: a member's own space (`id:{member_folder_id}/…`) and content shared from another member's drive (the `id:{item_drive_id}:{item_id}` the org's catalog gives). A collection whose task files rely on this declares `requires_adapter` in `collection.json`. Preflight Check 22 flags leftover per-backend wording (WARNING).
 
 ---
 

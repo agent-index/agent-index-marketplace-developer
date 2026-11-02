@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.10.2
+version: 1.11.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -365,6 +365,16 @@ Scope: `*.md` under `api/`, `setup/`, `internal/`, `upgrade/`, `templates/`. Exe
 - [ ] **WARNING** when `collaborative-acls.json` uses the legacy `grants` key instead of `acls` (install-collection < 2.4.0 ignores `grants[]`).
 - [ ] (Agent-run preflight only, judgment) Every change a workflow passes to the procedure names a declared `source`, and none is derived from content the agent read.
 - [ ] Implemented in `lib/preflight-cli.sh` as Check 17.
+
+**Per-backend addressing wording (added in preflight v1.11.0 — core 4.2.0, CI-025; `marketplace-eligibility.md` § "Addressing Org Locations"):**
+
+Scope: `*.md` under `api/`, `internal/`, `setup/`, `templates/`. Since core 4.2.0 with adapter gdrive 2.12.0 / onedrive 2.8.0, the executor resolves org locations, so task files name them by plain path.
+
+- [ ] **WARNING** per file, listing line numbers, on per-backend addressing instructions for org locations: `id:{folder_id}`, `id:{shared_root}`, `id:{org_config_id}`, `id:{resource_ids…}`, `id:{members_registry}`, `id:{drive_id}:{org_config_id|folder_id}`, "On Google Drive … by id", "On OneDrive … by path", "path-first", "id-first", "finding 63", `memberpathreads`.
+- [ ] Allowed (member-owned content, not org locations): `id:{member_folder_id}/…` and catalog-supplied `id:{item_drive_id}:{item_id}`.
+- [ ] A file carrying the marker comment `<!-- ci025-addressing-exception -->` is skipped (the update-path tasks keep their id reads for one release).
+- [ ] Never an ERROR: third-party collections may still target orgs older than core 4.2.0.
+- [ ] Implemented in `lib/preflight-cli.sh` as Check 22 (18-21 are reserved for the DC-001 checks).
 
 **Cross-package coordination reminder (added in preflight v1.2):**
 
