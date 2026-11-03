@@ -35,7 +35,7 @@ This skill provides reference information. It does not create, modify, or scaffo
 When the developer asks a question about agent-index development, find the answer in the source documentation. The authoritative sources, in priority order:
 
 1. `marketplace-eligibility.md` (this collection) — the formal marketplace and authoring requirements. Answers "what is required?" The runtime rules a collection runs under are in agent-index-core: the hot path in `CLAUDE.md`, the rest in `runtime-reference.md`, and admin and distribution rules in `admin-distribution.md`.
-2. `agent-index-file-format-standards.md` — template definitions and authoring conventions. Answers "what format should this file be?"
+2. `agent-index-file-format-standards.md` (this collection) — template definitions and authoring conventions. Answers "what format should this file be?"
 3. `collection-authoring-guide.md` — practical patterns and design guidance. Answers "how should I approach this?" (As of v1.6.0, includes the "Designing for Native Permissions" section covering aifs_share, aifs_unshare, aifs_get_permissions, aifs_search, aifs_transfer_ownership, the if_revision write pattern, and adapter contract pre-flight checks.)
 4. `capability-provider-spec.md` — capability provider system. Answers questions about provider/consumer declarations, bindings, and runtime resolution.
 5. `agent-index-filesystem/SPEC.md` — remote filesystem adapter contract. Answers questions about `aifs_*` tools, auth, and remote file layout. Currently at v2.0.0 (gdrive adapter ships v2.0; OneDrive and S3 adapters retain v1.0 contract until their own implementations land — check `adapter.json` `contract_version` for what a given install actually supports).

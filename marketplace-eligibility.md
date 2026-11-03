@@ -1,7 +1,7 @@
 # Agent-Index Marketplace Eligibility
 
 **Maintained by:** agent-index
-**Last Updated:** 2026-10-05
+**Last Updated:** 2026-10-20
 
 ---
 
@@ -171,7 +171,7 @@ There is no list of reserved phrases. `@ai:` aliases are a separate mechanism, a
 
 ## Skill and Task File Requirements
 
-All skill and task definition files (in both `/api/` and `/internal/`) must conform to the agent-index file format standards defined in `agent-index-meta-docs/agent-index-file-format-standards.md`.
+All skill and task definition files (in both `/api/` and `/internal/`) must conform to the agent-index file format standards defined in `agent-index-file-format-standards.md` (this collection).
 
 Required frontmatter fields for skills:
 
