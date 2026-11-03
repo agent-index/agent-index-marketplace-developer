@@ -3,7 +3,7 @@
 
 **Status:** Released
 **Authors:** Bill Salak
-**Last Updated:** 2026-10-20
+**Last Updated:** 2026-11-03
 
 ---
 
@@ -532,7 +532,7 @@ upgrade_compatible: true | false
 
 1. Write all collected parameter values to `setup-responses.md`
 2. Generate the personalized installed instance from the template using collected values
-3. Write the installed instance to `/members/{member_hash}/{skills|tasks}/{name}/`
+3. Write the installed instance to `members/{member_hash}/installed/{collection}/{type}/{name}/` (`{type}` is `skill` or `task`; core `org-setup.md`)
 4. Write manifest.json with parameter provenance for each field
 5. Register entry in `member-index.json` with assigned alias
 6. {Any additional completion steps specific to this skill or task}
@@ -845,22 +845,33 @@ new parameters, changed meanings, deprecated options.}
 
 ## 8. Validation Rules
 
-### Rules Enforced at Collection Install Time (by Marketplace Installer)
+### Checked at Collection Install Time (marketplace `download-collection` and `install-collection`)
 
-These rules are checked when an org admin installs a collection. Violations block install.
+These are the only checks the marketplace installer makes when an org admin downloads and installs a collection. Each one stops the install.
 
-| Rule | Scope | Severity |
+| Check | Where | Result |
 |---|---|---|
-| `collection.json` present and valid | Collection root | Error — blocks install |
-| All `api[]` entries have a corresponding `.md` file | Collection | Error — blocks install |
-| All `.md` files in `api/` and `internal/` have valid frontmatter | Per file | Error — blocks install |
-| `name` in frontmatter matches filename | Per file | Error — blocks install |
-| `type` value matches expected type for location | Per file | Error — blocks install |
-| All `dependencies` reference installable skills/tasks | Per file | Warning — surfaces at install |
-| All `external_dependencies` declared in `collection.json` | Collection | Warning — surfaces at install |
-| `collection-setup.md` present | Collection | Error — blocks install |
-| `CHANGELOG.md` present | Collection | Error — blocks install |
-| `README.md` present | Collection | Error — blocks install |
+| `collection.json` is readable and its `name` matches the collection | `download-collection` Step 5, `install-collection` Step 1 | Error — download is removed, or install halts |
+| `setup/collection-setup.md` is present | `install-collection` (Edge Cases) | Error — install halts |
+| On an org on core 4.0.0 or later: the collection is at least its minimum version and doesn't call the retired permission helper | `install-collection` Step 1 | Error — install halts; the admin downloads a newer version |
+
+The installer does not validate the rest of `collection.json`, the `api/` files or their frontmatter. External dependencies declared in `collection.json` are shown to the admin as a reminder after setup; they are not validated.
+
+### Required Before Publishing (not checked at install)
+
+These are authoring requirements. Nothing blocks an install that breaks them, so authors must meet them before publishing. They are defined in `marketplace-eligibility.md` § "Required File Structure", § "API Member Requirements" and § "Skill and Task File Requirements" (this collection); preflight covers parts of them.
+
+| Rule | Scope |
+|---|---|
+| `collection.json` present with all required fields | Collection root |
+| All `api[]` entries have a corresponding `.md` file | Collection |
+| All `.md` files in `api/` and `internal/` have valid frontmatter | Per file |
+| `name` in frontmatter matches filename | Per file |
+| `type` value matches expected type for location | Per file |
+| All `dependencies` reference installable skills/tasks | Per file |
+| All `external_dependencies` declared in `collection.json` | Collection |
+| `CHANGELOG.md` present | Collection root |
+| `README.md` present | Collection root |
 
 ### Rules Enforced at Member Install Time (by Org Setup Skill)
 
@@ -922,4 +933,4 @@ members:
 
 ---
 
-*These format standards are part of the agent-index platform specification. Updates to this document require a MAJOR version bump in `agent-index-core` if any existing file format is changed in a breaking way.*
+*These format standards are maintained in the developer collection. A breaking change to an existing file format affects every collection that uses it and the core flows that read it (install, update, setup), so coordinate it with the core maintainers before releasing it, and version it under `marketplace-eligibility.md` § "Versioning Requirements" (this collection).*
