@@ -52,6 +52,8 @@ On demand, or automatically after develop skill operations when `auto_preflight`
 
 Read the collection directory. Confirm `collection.json` exists and is valid JSON.
 
+**Adapter repos (DC-001).** A filesystem adapter repo has `adapter.json` and no `collection.json`. Don't stop: take the name and version from `adapter.json` and run only the checks that apply to an adapter: shell line endings and JSON validity, the adapter bundle checks in Step 4 (freshness, supported ops, and tool and argument coverage), and the trailing-newline guard. Skip the collection-only steps (frontmatter, setup templates, api[] and catalog checks). This matches `lib/preflight-cli.sh` adapter mode (Checks 4, 5, 7, 14, 15, 18).
+
 Parse `collection.json` and extract: name, version, api array, dependencies, category.
 
 Read the `/setup/collection-setup.md` and all files in `/api/`.
@@ -185,6 +187,16 @@ If `adapter.json` declares `supported_operations`, every op name listed must act
 - [ ] If `supported_operations` is empty or absent but `adapter.json` declares `contract_version >= 2.0.0`: WARNING — the v2.0 contract requires at least the read ops (`read`, `write`, `list`, `exists`, `stat`, `delete`, `copy`); an empty `supported_operations` array is suspicious.
 
 The check is grep-based rather than AST-based for portability — the bundle could be in any of several JS bundling formats, and parsing it correctly is much more work than substring-matching. False positives from substring matching are theoretically possible (e.g., "share" appears in some unrelated comment) but extremely unlikely to coincide with all the v2.0 op names simultaneously. The check is asymmetric: false positives (claiming the bundle has an op when it doesn't) are the dangerous case; false negatives (incorrectly flagging a bundle that does have the op under a name we don't recognize) are recoverable by adjusting the search patterns.
+
+**Tool and argument coverage (DC-001; `lib/preflight-cli.sh` Check 18):**
+
+Every tool the executor accepts, and every argument it reads, must be written down where an agent will look. The code is the source of truth: each `case 'aifs_*'` in `routeToolCall` (`src/exec.mjs`) is a tool, and that case's `args.X` reads are its arguments.
+
+- [ ] Run `bash src/aifs-exec.sh --help`. Every routed tool must appear, and each tool's `{...}` signature must name every argument it reads. A word in the tool's description doesn't count. Missing tool or argument: ERROR.
+- [ ] Run `node dist/aifs-exec.bundle.js --help` (JSON). Every routed tool must be in `tools`, and `arguments.{tool}` must name every argument it reads. No `arguments` map, or a tool or argument missing from it: ERROR.
+- [ ] In the sibling `agent-index-filesystem/SPEC.md`, every routed tool needs a `### aifs_*` section. Missing: WARNING (SPEC.md is a separate repo with its own release). No sibling clone: WARNING that it wasn't checked.
+
+Both `--help` surfaces are what an agent reads at runtime, which is why a gap there is an error. This would have caught bugs `f848` (help listed 9 of 16 tools), `e428` (`content_file` / `content_stdin` undocumented) and `f989` (`name_contains`). The CLI implementation is `lib/check-tool-coverage.mjs`.
 
 **Shipped shell-script line endings (added in preflight v1.2.3, closes bug `20260504-8d20ea22-7`):**
 

@@ -10,7 +10,8 @@ prep/push logic now lives in committed, version-controlled scripts; the `release
   hard gate per repo, adapter build+checksum (only repos flagged `is_adapter`), manifest
   `collection_version` restamp. Adapter repos (`adapter.json`, no `collection.json`) are gated, not
   skipped (1.14.0): `adapter.json` `version` must equal the manifest version, and the bundle's sha256
-  must match `exec_bundle_checksum` (bare hex or `sha256:<hex>`) and pass `node --check`.
+  must match `exec_bundle_checksum` (bare hex or `sha256:<hex>`) and pass `node --check`. They also run the preflight gate in adapter mode (DC-001): Checks 4, 5, 7, 14, 15 and 18, so an
+  adapter whose `--help` doesn't document every tool and argument the executor accepts fails prep.
 - `release-stage.ps1` / `release-stage.sh` -- **stage mode (1.14.0)**: push a release candidate to
   the branch `channel/<name>` in every repo of the manifest so a test org on that distribution
   channel can install it BEFORE anything is tagged. See "Stage -> test -> promote" below.
