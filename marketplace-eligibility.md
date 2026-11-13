@@ -1,7 +1,7 @@
 # Agent-Index Marketplace Eligibility
 
 **Maintained by:** agent-index
-**Last Updated:** 2026-10-05
+**Last Updated:** 2026-11-13
 
 ---
 
@@ -106,7 +106,7 @@ Every name listed in `collection.json` `api` array must have a corresponding `.m
 
 The `api` array in `collection.json` lists the collection's API members. Each entry takes one of two forms, and both may appear in the same array.
 
-**Object form (SHOULD).** The capability name plus its natural-language triggers:
+**Object form (use it for every entry).** The capability name plus its natural-language triggers:
 
 ```json
 "api": [
@@ -120,9 +120,16 @@ The `api` array in `collection.json` lists the collection's API members. Each en
 ]
 ```
 
-**String form (allowed).** The bare capability name: `"api": ["session-start", "member-bootstrap"]`. A string entry cannot carry triggers, so the capability gets no natural-language routing and is reachable only by its `@ai:` alias. Use it for capabilities that are not meant to be asked for in conversation. Core's own startup and admin tasks are an example.
+**A capability that isn't meant to be asked for in conversation** still uses the object form, with an empty `triggers` array. Core's startup and admin tasks do this (core 4.1.1):
 
-New entries SHOULD use the object form. It is not a MUST, because core's string-form entries are valid and would otherwise fail their own requirement.
+```json
+"api": [
+  { "name": "session-start", "triggers": [] },
+  { "name": "publish-updates", "triggers": [] }
+]
+```
+
+**String form (accepted, discouraged).** The bare capability name: `"api": ["legacy-task"]`. Older collections may still use it, so it remains valid, but a string entry cannot carry triggers: the capability gets no natural-language routing and is reachable only by its `@ai:` alias. Preflight Check 21 warns on every string entry. New entries MUST NOT use it; convert existing ones to `{ "name": ..., "triggers": [] }` when you next touch the collection.
 
 An object entry carries exactly two fields:
 

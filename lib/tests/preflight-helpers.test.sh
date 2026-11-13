@@ -42,5 +42,13 @@ out=$(node "$HERE/../check-docs.mjs" 19 "$J" 2>&1)
 echo "$out" | grep -q 'notes.json:1: guide.md § "Missing Heading"'; check "Check 19: broken citation in a .json file is reported" $?
 echo "$out" | grep -q '"Real Heading" — no such heading'; [ $? -ne 0 ]; check "Check 19: valid citation in a .json file is not reported" $?
 
+# 4. Check 21: an object api[] entry with no "triggers" array is a WARNING (DC-001 follow-up).
+K="$TMP/agent-index-marketplace-api"; mkdir -p "$K"
+echo '{"name":"api","version":"1.0.0","api":[{"name":"no-triggers"},{"name":"bad-triggers","triggers":"x"},{"name":"ok-empty","triggers":[]}]}' > "$K/collection.json"
+out=$(node "$HERE/../check-docs.mjs" 21 "$K" 2>&1)
+echo "$out" | grep -q '^WARN .*"no-triggers" has no "triggers" array'; check "Check 21: object entry without triggers warns" $?
+echo "$out" | grep -q '^WARN .*"bad-triggers": "triggers" is not an array'; check "Check 21: non-array triggers warns" $?
+echo "$out" | grep -q 'ok-empty'; [ $? -ne 0 ]; check "Check 21: entry with triggers [] is not reported" $?
+
 echo "# pass $pass, fail $fail"
 [ $fail -eq 0 ]
