@@ -260,6 +260,21 @@ Implemented in `lib/preflight-cli.sh` as Check 8.
 
 The two checks above are paired: together they catch both *vertical* drift (manifest version vs `.md` frontmatter version, the per-capability version) and *horizontal* drift (manifest `collection_version` vs `collection.json` `version`, the collection-level version). Both are forms of "two declared facts that must agree" — the same hazard class as bug `20260430-8d20ea22` (where a comparison read the wrong version field). Closes developer-collection idea `per-capability-manifest-vs-md-version-drift`.
 
+**Citations resolve (DC-001; `lib/preflight-cli.sh` Check 19; all repos, adapters included):**
+
+The citation rule (CI-013) is `{doc} § "Exact Heading"`, never a line number.
+- [ ] Every `{doc}.md § "Heading"` in the repo's `*.md`, `*.json` and `*.sh` files matches a heading in that document. Look the document up in this repo first, then in sibling `agent-index-*` clones; `CLAUDE.md` means `.claude/CLAUDE.md.template`. Heading not found: ERROR. Document not found anywhere: WARNING (not checked).
+- [ ] No line-number citations: `{doc}.md line N`, `{doc}.md lines N` or `{doc}.md:N` is an ERROR. Line numbers move with every edit.
+- [ ] Skip `CHANGELOG.md`: it records the documents as they were. Skip placeholder examples that explain the rule (`§ "Exact Heading"`).
+- [ ] **Results depend on which sibling repos are cloned.** A citation into another repo is only checked when that repo is cloned beside this one (e.g. core's citations of the developer collection's `marketplace-eligibility.md` need `agent-index-marketplace-developer/` next to core). Without it they become one "not checked" WARNING, not errors. A generic name (`README.md`, `SPEC.md`) cited without a repo prefix resolves in this repo first, then to the first sibling clone (alphabetically) that has a file by that name; prefix the repo (e.g. `agent-index-filesystem/SPEC.md`) when it matters. Run preflight with the sibling clones present for a full check (release-prep does).
+- [ ] Citations are checked in `*.md`, `*.sh` and `*.json` files (in JSON, escaped quotes `§ \"Heading\"` are unescaped first).
+
+**One home per rule (DC-001; Check 20; agent-index-core only):**
+- [ ] No heading appears in both `.claude/CLAUDE.md.template` and `runtime-reference.md` or `admin-distribution.md`. A rule stated in two places drifts (that is how CLAUDE.md and standards.md diverged). Duplicate: ERROR.
+
+**Triggers route to their own entry (DC-001; Check 21):**
+- [ ] For every object entry in `collection.json` `api[]`, each `triggers[]` item's `capability` equals the entry's `name`. A mismatch: ERROR (routing would send the phrase to a different capability than the one that declares it).
+
 **Capability provider references (if applicable):**
 - [ ] If `collection.json` has a `provides` array, every `implemented_by` value references a name in the `api` array
 - [ ] If `collection.json` has a `requires` array, every capability type referenced exists as a well-known type or is properly namespaced as a custom type
@@ -461,6 +476,7 @@ These checks only run at `marketplace` strictness:
 - [ ] Collection name does not conflict with any known marketplace collection name
 - [ ] `ROADMAP.md` exists (recommended for marketplace collections)
 - [ ] README includes clear installation prerequisites and any external system requirements
+- [ ] Every `collection.json` `api[]` entry is an object (`{"name": ..., "triggers": [...]}`), not a plain string. A plain-string entry can't carry triggers, so members can only reach it by `@ai:` alias: WARNING (DC-001; CLI Check 21 reports it at every strictness).
 
 **On success:** Proceed to Step 10.
 **On failure:** Record marketplace-specific issues.

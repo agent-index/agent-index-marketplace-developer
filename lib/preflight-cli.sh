@@ -4,7 +4,7 @@
 # Usage:  bash preflight-cli.sh --collection <path> [--quiet] [--channel <name>]
 #   <path> is a collection repo (collection.json) or a filesystem adapter repo
 #   (adapter.json, no collection.json). Adapter mode (DC-001) runs the checks that
-#   apply to adapters: 4, 5, 7, 14, 15 and 18.
+#   apply to adapters: 4, 5, 7, 14, 15, 18 and 19.
 #   --channel <name>  stage mode (release-stage passes it): Check 12 also accepts a catalog version
 #                     that equals a sibling's collection.json/adapter.json on its local
 #                     origin/channel/<name> ref (read with git show; nothing is fetched or checked out)
@@ -74,7 +74,7 @@ err() { ERRORS+=("$1"); }
 warn() { WARNINGS+=("$1"); }
 
 log "preflight: $COLL_NAME v$COLL_VERSION at $COLL"
-[[ "$MODE" == "adapter" ]] && log "mode: adapter (adapter.json) — running Checks 4, 5, 7, 14, 15, 18"
+[[ "$MODE" == "adapter" ]] && log "mode: adapter (adapter.json) — running Checks 4, 5, 7, 14, 15, 18, 19"
 log ""
 
 if [[ "$MODE" == "collection" ]]; then
@@ -744,6 +744,51 @@ else
     fi
 fi
 log "  errors: $(( ${#ERRORS[@]} - e18 )), warnings: $(( ${#WARNINGS[@]} - w18 ))"
+
+# ── Checks 19–21: citations, duplicate headings, api[] entries (DC-001 PR 2) ─
+# Implemented in lib/check-docs.mjs (prints ERROR/WARN/INFO lines).
+#   19 (all repos)  every {doc}.md § "Heading" resolves to a real heading (this repo, then
+#                   sibling agent-index-* clones; CLAUDE.md -> .claude/CLAUDE.md.template);
+#                   line-number citations ({doc}.md line N / {doc}.md:N) are errors;
+#                   CHANGELOG.md is skipped (historical record). Missing heading or line
+#                   citation: ERROR. Cited document not found: WARNING.
+#   20 (core)       no heading in both .claude/CLAUDE.md.template and runtime-reference.md /
+#                   admin-distribution.md, so each rule has one home. ERROR.
+#   21 (collections) plain-string api[] entries can't carry triggers: WARNING. A trigger
+#                   whose capability isn't its entry's name: ERROR.
+CHECK_DOCS="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/check-docs.mjs"
+run_docs_check() { # run_docs_check NUM TITLE APPLIES(yes|no) SKIPMSG
+    local num="$1" title="$2" applies="$3" skipmsg="$4"
+    log "Check $num: $title"
+    local e0=${#ERRORS[@]} w0=${#WARNINGS[@]}
+    if [[ "$applies" != "yes" ]]; then
+        log "  skipped: $skipmsg"
+    elif ! command -v node >/dev/null 2>&1; then
+        warn "  node not available; skipped Check $num ($title)"
+    elif [[ ! -f "$CHECK_DOCS" ]]; then
+        warn "  lib/check-docs.mjs not found next to preflight-cli.sh; skipped Check $num"
+    else
+        # Same rule as Check 18: a helper that crashes is an ERROR, not a pass.
+        local out rc
+        out=$(node "$CHECK_DOCS" "$num" "$COLL" 2>&1); rc=$?
+        while IFS= read -r line; do
+            case "$line" in
+                "ERROR "*) err "  ${line#ERROR }" ;;
+                "WARN "*)  warn "  ${line#WARN }" ;;
+                "INFO "*)  log "  ${line#INFO }" ;;
+            esac
+        done <<< "$out"
+        if [[ $rc -ne 0 ]]; then
+            err "  Check $num helper failed (exit $rc), so it was not checked: $(printf '%s\n' "$out" | grep -m1 -E 'Error|error:' || printf '%s\n' "$out" | grep -m1 -E '[A-Za-z]')"
+        fi
+    fi
+    log "  errors: $(( ${#ERRORS[@]} - e0 )), warnings: $(( ${#WARNINGS[@]} - w0 ))"
+}
+run_docs_check 19 'citations resolve; no line-number citations' yes ''
+IS_CORE=no; [[ "$MODE" == "collection" && -f "$COLL/.claude/CLAUDE.md.template" ]] && IS_CORE=yes
+run_docs_check 20 'no heading in both CLAUDE.md.template and the reference documents (core)' "$IS_CORE" 'not core'
+IS_COLL=no; [[ "$MODE" == "collection" ]] && IS_COLL=yes
+run_docs_check 21 'api[] entries: object form; triggers route to their own entry' "$IS_COLL" 'adapter mode'
 
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
