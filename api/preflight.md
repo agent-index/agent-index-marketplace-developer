@@ -1,7 +1,7 @@
 ---
 name: preflight
 type: task
-version: 1.10.2
+version: 1.11.0
 collection: developer
 description: Systematic release-readiness check for a collection — validates standards compliance, version consistency, cross-reference integrity, changelog hygiene, and catches the loose ends that slip through during development.
 stateful: false
@@ -274,6 +274,7 @@ The citation rule (CI-013) is `{doc} § "Exact Heading"`, never a line number.
 
 **Triggers route to their own entry (DC-001; Check 21):**
 - [ ] For every object entry in `collection.json` `api[]`, each `triggers[]` item's `capability` equals the entry's `name`. A mismatch: ERROR (routing would send the phrase to a different capability than the one that declares it).
+- [ ] Every object entry has a `triggers` array (it may be empty). A missing `triggers` key, or one that isn't an array: WARNING (`marketplace-eligibility.md` § "API Entry Format" requires it; add `"triggers": []` for a capability not meant to be asked for by phrase).
 
 **Capability provider references (if applicable):**
 - [ ] If `collection.json` has a `provides` array, every `implemented_by` value references a name in the `api` array
