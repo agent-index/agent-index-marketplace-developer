@@ -102,9 +102,8 @@ foreach ($r in $m.repos) {
   }
 
   # 3. preflight HARD GATE (after stamping, so Check 2 sees aligned manifests).
-  # preflight-cli needs collection.json; for an adapter repo the checksum + node --check gate above
-  # is the verification (it is what preflight Check 14 checks).
-  if ($kind -eq "adapter") { Write-Host "  (adapter repo: preflight-cli needs collection.json -- checksum gate above is the verification)"; Write-Host "  OK prep $name"; continue }
+  # Adapter repos run too: preflight-cli's adapter mode (DC-001) runs Checks 4, 5, 7, 14, 15 and
+  # 18 (every tool and argument the executor accepts is documented in both --help surfaces).
   $bashColl = ConvertTo-BashPath ((Resolve-Path $path).Path)
   $pf = & $bash "$bashPreflight" --collection "$bashColl" 2>&1
   if ($LASTEXITCODE -ne 0) {

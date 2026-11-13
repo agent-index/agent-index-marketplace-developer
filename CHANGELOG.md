@@ -1,12 +1,31 @@
 ﻿# Developer Collection — Changelog
 
-## [1.16.0] — <RELEASE_DATE> — plain-path authoring rule and Check 22 (CI-025)
+## [1.17.0] — <RELEASE_DATE> — plain-path authoring rule and Check 22 (CI-025)
 
-Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0. (If DC-001's checks release first as 1.16.0, this becomes 1.17.0 at rebase.)
+Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0.
 
 ### Added
 - **`marketplace-eligibility.md` § "Addressing Org Locations"**: task files name org locations by plain path on every backend; `id:` only for member-owned content and content the catalog hands you. New optional `collection.json` field `requires_adapter`.
-- **Preflight Check 22** (`lib/preflight-cli.sh`, preflight task 1.11.0): flags per-backend addressing wording left in task files, as a WARNING. Files marked `<!-- ci025-addressing-exception -->` are skipped for one release. Checks 18-21 stay reserved for DC-001.
+- **Preflight Check 22** (`lib/preflight-cli.sh`, preflight task 1.12.0): flags per-backend addressing wording left in task files, as a WARNING. Files marked `<!-- ci025-addressing-exception -->` are skipped for one release. Checks 18–21 are DC-001's (1.16.0).
+## [1.16.0] — 2026-11-13 — preflight checks adapters; Checks 18–21 (tool coverage, citations, one home per rule, api[] entries)
+
+DC-001 (developer#10, #11 by Kallista Salak). Proposal: Developer Collection `artifacts/preflight-coverage-and-citation-checks-proposal.md`. The fixes these checks needed shipped in core 4.1.1, gdrive 2.11.7 and onedrive 2.7.2, so every agent-index repo passes them with 0 errors.
+
+### Added
+- **Adapter mode.** `lib/preflight-cli.sh` recognizes an adapter repo by its `adapter.json` instead of stopping without a `collection.json`, and runs the checks that apply (4, 5, 7, 14, 15, 18). `release-prep` and `release-stage` (`.sh` and `.ps1`) now gate adapter repos through preflight instead of skipping them.
+- **Check 18 — tool and argument coverage (adapters).** Every tool and argument the executor's `routeToolCall` accepts must appear in the wrapper `--help` and the executor's JSON `--help` (ERROR); a tool with no `### <tool>` section in the filesystem `SPEC.md` is a WARNING. `lib/check-tool-coverage.mjs`.
+- **Check 19 — citations resolve (all repos).** Every `{doc} § "Heading"` citation must match a real heading, in this repo or a sibling `agent-index-*` clone; line-number citations are errors; an unknown document is a WARNING; `CHANGELOG.md` is skipped as a historical record; `.json` files are scanned. `lib/check-docs.mjs`.
+- **Check 20 — one home per rule (core).** No heading may appear in both `CLAUDE.md.template` and `runtime-reference.md` / `admin-distribution.md`.
+- **Check 21 — `api[]` entries.** A plain-string entry (which can't carry triggers) is a WARNING; so is an object entry with no `triggers` array, or one that isn't an array; a trigger whose capability isn't its own entry's name is an ERROR.
+- **A helper that crashes fails its check** (Checks 18–21) instead of reading as "OK". `lib/tests/preflight-helpers.test.sh` covers the crash cases, `.json` citations and the Check 21 `triggers` warnings (10 tests).
+
+### Changed
+- preflight 1.11.0 (`api/preflight.md`) documents Checks 18–21, adapter mode, and that Check 19's results depend on which sibling repos are cloned.
+- On a preflight failure, `release-prep.sh` / `release-stage.sh` print the error lines rather than the per-check counters.
+- **`marketplace-eligibility.md` § "API Entry Format":** use the object form for every entry, with `"triggers": []` for a capability not meant to be asked for by phrase (core's startup and admin tasks have done this since core 4.1.1, which replaces the old string-form example). The string form stays valid for older collections but is discouraged, and new entries must not use it.
+
+### Upgrade
+Nothing to do. A collection or adapter that fails a new check stops at `release-prep`/`release-stage` until fixed; run `bash lib/preflight-cli.sh --collection <repo>` to see the findings first.
 
 ## [1.15.0] — 2026-10-17 — marketplace-eligibility.md (from core standards.md)
 
