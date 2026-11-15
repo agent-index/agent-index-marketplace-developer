@@ -1,5 +1,17 @@
 ﻿# Developer Collection — Changelog
 
+## [1.18.0] — <RELEASE_DATE> — releases mark the forwarded bugs they fix
+
+Bug Reporting Platform (agent-index project `bug-admin-platform`, outcome 12).
+
+### Added
+- **`fixes` in the release-delta manifest** (`lib/release/release-manifest.schema.json`): optional `[{"id", "repo"}]` -- upstream bug IDs (full or the 8-character short form) this release fixes, each with the repo in this release that carries the fix.
+- **`lib/release/mark-fixes.py`** (standard library): marks those bugs `fixed-released` on the agent-index log server (`POST /ops/releases`, AWS SigV4) with the repo's version; only bugs in `fixed-pending-release` move, others are reported. Credentials from `--creds` (a bug-admin operator key), the `AWS_*` environment, or the profile's static keys. `--dry-run`, `--selftest` (AWS's published signing test vector), `--env dev`.
+
+### Changed
+- **`release-push.sh` / `.ps1`** run `mark-fixes.py` after the last tag, on both the default-branch path and `--tag-only` / `-TagOnly`. A failure never fails the release (the tags are out); it prints the command to re-run. The `.ps1` needs Python only for this step and says so if none is found.
+- **release 1.4.0** asks which forwarded bugs the release fixes and writes `fixes` into the manifest. `release-checklist.md` step 13a; develop 1.6.2 Version Bump step 6a; `lib/release/README.md`.
+
 ## [1.16.0] — 2026-11-13 — preflight checks adapters; Checks 18–21 (tool coverage, citations, one home per rule, api[] entries)
 
 DC-001 (developer#10, #11 by Kallista Salak). Proposal: Developer Collection `artifacts/preflight-coverage-and-citation-checks-proposal.md`. The fixes these checks needed shipped in core 4.1.1, gdrive 2.11.7 and onedrive 2.7.2, so every agent-index repo passes them with 0 errors.

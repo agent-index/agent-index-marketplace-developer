@@ -1,7 +1,7 @@
 ---
 name: develop
 type: skill
-version: 1.6.1
+version: 1.6.2
 collection: developer
 description: Interactive development skill for creating new collections, adding capabilities to existing ones, and evolving collections across versions — adapts to both technical and non-technical authors.
 stateful: true
@@ -198,6 +198,7 @@ When preparing a version release:
 5. If MAJOR bump: remind the developer they need an upgrade script in `/upgrade/` and must set `eol_date` on the prior major version.
 5a. **Re-stamp sentinels on every file touched by the bump** (collections declaring `file_integrity: sentinel-v1`): the sentinel must remain the last non-whitespace content after edits. If the collection hasn't adopted sentinel-v1, offer adoption as part of the bump (declare + stamp all files in the same release).
 6. Run preflight if auto_preflight is enabled.
+6a. **If the release fixes bugs orgs forwarded to agent-index,** list their upstream IDs in the release manifest's `fixes` (the `release` task asks); the push script marks them released after tagging (developer 1.18.0).
 7. **A version bump is not shipped until it is pushed AND tagged.** After preflight is clean, the release is pushed and each repo tagged `v<version>` — generate that script with the `release` task (`@ai:release`); see the Release stage of the lifecycle. Bumping the version in the file is not the release; the tag the `clone-script-generator` pins to is.
 
 ### File Format Compliance

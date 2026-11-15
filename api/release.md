@@ -1,7 +1,7 @@
 ---
 name: release
 type: task
-version: 1.3.1
+version: 1.4.0
 collection: developer
 description: Generates a matched pair of host-native release scripts — an idempotent build-and-prep script (adapter unit tests with module-resolution exit-classification, native bundle build + checksum stamp, manifest + resource-listings restamp, fail-closed version-consistency gate) and a gated push script (changelog date stamp, mandatory preflight, per-repo commit→push→tag v<version> in code-first/listings-last order, backend-distribution handoff). The ship-side counterpart to core's clone-script-generator.
 stateful: false
@@ -64,6 +64,7 @@ Ask the developer (one question at a time for non-technical authors; batched for
 2. For each repo, confirm the target version. **Read the actual declared version** from the repo (`collection.json` `version`, `adapter.json` `version`, or `infrastructure-directory.json`/`marketplace-directory.json` `directory_version`) and present it as the default — do not ask the developer to retype it.
 3. Does this release publish `/shared/dist/` (backend distribution)? If yes, which backend?
 4. Confirm the tag convention (default `v<version>` per repo).
+5. **Which forwarded bugs does this release fix? (1.4.0)** Ask for the upstream bug IDs (the 8-character IDs bug-admin shows) and, for each, which repo in this release carries the fix. Skip if none. They go in the manifest's `fixes`; after tagging, `release-push` marks them fixed-released on the agent-index log server with that repo's version, so the orgs that reported them see "fixed in X". Only bugs set to `fixed-pending-release` in bug-admin move; others are reported back, never changed. Not asked for a stage.
 
 Detect `host_os` and `host_arch` from the running environment.
 
@@ -99,15 +100,18 @@ Write the manifest to `<install_root>/.agent-index/release-<headline-tag>.json` 
     { "name": "agent-index-core", "path": "../agent-index-core", "version": "3.28.0", "is_adapter": false, "in_listings": true }
   ],
   "push_order": ["agent-index-core", "agent-index-marketplace", "agent-index-marketplace-developer", "agent-index-marketplace-library", "agent-index-resource-listings"],
-  "dist_publish": true
+  "dist_publish": true,
+  "fixes": [ { "id": "3f9c2a71", "repo": "agent-index-core" } ]
 }
 ```
+
+`fixes` is optional (1.4.0): omit it when the release fixes no forwarded bugs. Each `repo` must be in `repos`.
 
 Only repos changed in the release go in `repos`/`push_order`; flag adapters with `is_adapter:true` (so the build+checksum step runs only for them -- no adapter steps when adapters are untouched); `push_order` MUST end with `agent-index-resource-listings`.
 
 **The committed scripts encode every invariant the old generated pair did:**
 - `release-prep` -- preflight **hard gate** per repo (G3), adapter unit-test advisory-skip + **native bundle build + checksum + `node --check`** for `is_adapter` repos (P1/P2), `api/*-manifest.json` `collection_version` restamp (P3), and (via preflight Checks 10/13/14) the resource-listings stamp + cross-repo version-consistency gate + adapter build integrity (P4/P5). NO git writes; re-runnable.
-- `release-push` -- the **pre-push diff + integrity gate** (shows each repo's `git status --porcelain` -- new untracked files included -- and `git diff --stat`/full diff for review, and flags a lost `AIFS:FILE-END` sentinel vs HEAD, a missing trailing newline, or a non-HTTPS `origin` -- the guard that would have caught the create-org torn-write), CHANGELOG `<RELEASE_DATE>` stamp at push (G2), per-repo confirm-commit/push/**tag `v<version>`** in `push_order` with resource-listings LAST and never moving a published tag (G4), and the `/shared/dist` handoff note (G5).
+- `release-push` -- the **pre-push diff + integrity gate** (shows each repo's `git status --porcelain` -- new untracked files included -- and `git diff --stat`/full diff for review, and flags a lost `AIFS:FILE-END` sentinel vs HEAD, a missing trailing newline, or a non-HTTPS `origin` -- the guard that would have caught the create-org torn-write), CHANGELOG `<RELEASE_DATE>` stamp at push (G2), per-repo confirm-commit/push/**tag `v<version>`** in `push_order` with resource-listings LAST and never moving a published tag (G4), then (1.4.0) `lib/release/mark-fixes.py` for the manifest's `fixes` -- a failure there never fails the release; it prints the command to re-run -- and the `/shared/dist` handoff note (G5).
 
 Preflight is the single source of truth for structural gates; `release-prep` calls it rather than re-implementing them inline.
 

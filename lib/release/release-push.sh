@@ -18,8 +18,9 @@ TAG_ONLY=0; [ "${2:-}" = "--tag-only" ] && TAG_ONLY=1
 die(){ echo "FATAL: $*"; exit 2; }
 confirm(){ read -r -p "$1 [y/N] " a; [ "$a" = "y" ] || [ "$a" = "Y" ]; }
 [ -n "$M" ] && [ -f "$M" ] || die "usage: release-push.sh <manifest.json>"
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=_python.sh
-. "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/_python.sh"   # working python3 (not the Windows Store stub)
+. "$HERE/_python.sh"   # working python3 (not the Windows Store stub)
 M="$(py_path "$M")"
 command -v git >/dev/null || die "git required"
 
@@ -66,6 +67,17 @@ tag_commit(){
   confirm "  tag $n $tag at ${sha:0:12} and push tag?" || { echo "  skipped tag for $n"; return 0; }
   git -C "$p" tag -a "$tag" "$sha" -m "release $tag" || die "tag failed for $n"
   push_and_report git -C "$p" push origin "$tag" || die "tag push failed for $n"
+}
+
+# After the tags are out: mark the bugs this release fixes as released on the agent-index log
+# server (manifest "fixes", developer 1.18.0). Never fails the release -- tags are already pushed.
+# MARK_FIXES_ENV=dev points it at the dev log server (testing).
+mark_fixes(){
+  [ "$(python3 -c "import json;print(len(json.load(open('$M')).get('fixes') or []))")" != "0" ] || return 0
+  echo ""; echo "=================== MARK FIXED BUGS RELEASED ==================="
+  if python3 "$(py_path "$HERE/mark-fixes.py")" "$M" --env "${MARK_FIXES_ENV:-prod}"; then return 0; fi
+  echo "  The release is complete; only the bug status update failed (above). Fix the cause, then run:"
+  echo "      python3 $HERE/mark-fixes.py $M --env ${MARK_FIXES_ENV:-prod}"
 }
 
 # --tag-only version gate at commit $2 of repo $1 (name $3, manifest version $4, label $5):
@@ -133,6 +145,7 @@ if [ $TAG_ONLY -eq 1 ]; then
     version_gate_at "$p" "$sha" "$n" "$v" "origin/$db" || die "$n: version check failed at origin/$db (above) -- has the release PR merged? Stopping before later repos (listings stay last)."
     tag_commit "$p" "$v" "$sha" "$n"
   done
+  mark_fixes
   echo ""
   if [ "$(python3 -c "import json;print(json.load(open('$M')).get('dist_publish',False))")" = "True" ]; then
     echo "DIST PUBLISH HANDOFF: now clone at the new tags (lib/clone) then run create-org/apply-updates"
@@ -220,6 +233,7 @@ for n in "${ORDER[@]}"; do
   fi
   tag_commit "$p" "$v" "$(git -C "$p" rev-parse HEAD)" "$n"
 done
+[ $DEFERRED -eq 0 ] && mark_fixes
 echo ""
 DP=$(python3 -c "import json;print(json.load(open('$M')).get('dist_publish',False))")
 if [ "$DP" = "True" ] && [ $DEFERRED -eq 0 ]; then

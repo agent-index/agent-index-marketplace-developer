@@ -20,6 +20,18 @@
       }
     },
     "push_order": { "type": "array", "items": { "type": "string" } },
-    "dist_publish": { "type": "boolean", "default": false }
+    "dist_publish": { "type": "boolean", "default": false },
+    "fixes": {
+      "description": "developer 1.18.0: upstream bug IDs this release fixes. After tagging, release-push marks each fixed-released on the agent-index log server with its repo's version. repo must name an entry in repos.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "repo"],
+        "properties": {
+          "id": { "type": "string", "description": "Upstream bug ID, full or the 8-character short form" },
+          "repo": { "type": "string" }
+        }
+      }
+    }
   }
 }
