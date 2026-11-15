@@ -178,11 +178,15 @@ def main():
     for i in out.get("released", []):
         r = next(x for x in resolved if x["id"] == i)
         print(f"  released  {i[:8]}  fixed in {r['repo']} {r['version']}")
+    pending = [s for s in out.get("skipped", []) if s.get("status") != "fixed-released"]
     for s in out.get("skipped", []):
-        print(f"  skipped   {s['id'][:8]}  status is {s['status']} (only fixed-pending-release bugs are marked; set it in bug-admin and re-run)")
+        if s.get("status") == "fixed-released":
+            print(f"  already   {s['id'][:8]}  already fixed-released -- nothing to do")
+        else:
+            print(f"  skipped   {s['id'][:8]}  status is {s['status']} (only fixed-pending-release bugs are marked; set it in bug-admin and re-run)")
     for i in out.get("not_found", []):
         print(f"  not found {i}")
-    if out.get("skipped") or out.get("not_found"):
+    if pending or out.get("not_found"):
         print("mark-fixes: some bugs were not marked (above). The release itself is fine.")
 
 
