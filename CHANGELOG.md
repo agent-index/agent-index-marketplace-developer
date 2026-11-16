@@ -1,6 +1,6 @@
 ﻿# Developer Collection — Changelog
 
-## [1.18.0] — <RELEASE_DATE> — releases mark the forwarded bugs they fix
+## [1.18.0] — 2026-11-16 — releases mark the forwarded bugs they fix
 
 Bug Reporting Platform (agent-index project `bug-admin-platform`, outcome 12).
 
