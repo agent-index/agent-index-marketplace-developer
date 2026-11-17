@@ -34,6 +34,10 @@ Use this when a test org should install the candidate before it is tagged. Run i
 12. **Publish `/shared/dist/`** — `create-org`/`apply-updates` diffs the local clone against the backend and republishes only what changed: collections → their remote trees; directories + binary → `/shared/dist/` + `manifest.json`. Members read from here, never from github.com.
 13. **Verify the manifest** — `/shared/dist/manifest.json` `org_release_tag` + per-artifact `sha256` reflect this release. This file is the org's version authority; `check-updates` compares against it.
 
+## Mark fixed bugs released (developer 1.18.0)
+
+13a. **Bugs this release fixes** -- if the release fixes bugs orgs forwarded to agent-index, list them in the manifest's `fixes` (`{"id": "<upstream id>", "repo": "<repo in this release>"}`) and set each to `fixed-pending-release` in bug-admin beforehand. After the last tag, `release-push` runs `lib/release/mark-fixes.py`, which marks them `fixed-released` with that repo's version; orgs then see "fixed in X, your org has Y". It needs AWS credentials allowed to call the log server's operator door (an admin profile, or a bug-admin operator key via `--creds`). A failure never fails the release: re-run the printed command.
+
 ## After release (stage 9)
 
 14. **Test the release** in a real install as a real (non-admin) member — not admin-as-proxy. Record results. File any findings as bugs; fold fixes into a point release through this same checklist.

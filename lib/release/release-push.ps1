@@ -21,6 +21,32 @@ foreach ($r in $m.repos) { $paths["$($r.name)"] = "$($r.path)"; $vers["$($r.name
 $order = @($m.push_order)
 if ($order.Count -eq 0) { Die "manifest push_order is empty" }
 
+# After the tags are out: mark the bugs this release fixes as released on the agent-index log
+# server (manifest "fixes", developer 1.18.0). Never fails the release -- tags are already pushed.
+# Needs Python 3 for mark-fixes.py; without it, prints the command to run later. $env:MARK_FIXES_ENV=dev
+# points it at the dev log server (testing).
+function Invoke-MarkFixes {
+  if (-not $m.fixes -or @($m.fixes).Count -eq 0) { return }
+  Write-Host ""; Write-Host "=================== MARK FIXED BUGS RELEASED ==================="
+  $envName = if ($env:MARK_FIXES_ENV) { $env:MARK_FIXES_ENV } else { "prod" }
+  $script = Join-Path $PSScriptRoot "mark-fixes.py"
+  $py = $null
+  foreach ($c in @("python", "py", "python3")) {
+    $cmd = Get-Command $c -ErrorAction SilentlyContinue
+    if ($cmd -and ((& $cmd.Source -c "print(42)" 2>$null) -eq "42")) { $py = $cmd.Source; break }
+  }
+  if (-not $py) {
+    Write-Host "  No working Python 3 found. The release is complete; mark its bugs later with:"
+    Write-Host "      python `"$script`" `"$Manifest`" --env $envName"
+    return
+  }
+  & $py $script $Manifest --env $envName
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "  The release is complete; only the bug status update failed (above). Fix the cause, then run:"
+    Write-Host "      python `"$script`" `"$Manifest`" --env $envName"
+  }
+}
+
 # The repo's default branch, from origin/HEAD; falls back to main, then master.
 function Get-DefaultBranch([string]$p) {
   $b = (& git -C $p symbolic-ref --short refs/remotes/origin/HEAD 2>$null)
@@ -130,6 +156,7 @@ if ($TagOnly) {
     if (-not (Test-VersionAt $p $sha $n $v "origin/$db")) { Die "${n}: version check failed at origin/$db (above) -- has the release PR merged? Stopping before later repos (listings stay last)." }
     Set-ReleaseTag $p $v $sha $n
   }
+  Invoke-MarkFixes
   Write-Host ""; Write-DistHandoff; Write-Host "TAG-ONLY COMPLETE."; exit 0
 }
 
@@ -207,6 +234,7 @@ if ($deferred) {
   Write-Host "    powershell -ExecutionPolicy Bypass -File release-push.ps1 -Manifest $Manifest -TagOnly"
   exit 0
 }
+Invoke-MarkFixes
 Write-DistHandoff
 Write-Host "PUSH COMPLETE."
 exit 0

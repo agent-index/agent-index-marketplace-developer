@@ -42,9 +42,15 @@ prep/push logic now lives in committed, version-controlled scripts; the `release
   ],
   "push_order": ["agent-index-core", "agent-index-marketplace", "agent-index-marketplace-developer",
                  "agent-index-marketplace-library", "agent-index-resource-listings"],
-  "dist_publish": true
+  "dist_publish": true,
+  "fixes": [ { "id": "3f9c2a71", "repo": "agent-index-core" } ]
 }
 ```
+`fixes` (1.18.0, optional): upstream bug IDs this release fixes. After the last tag, `release-push`
+runs `mark-fixes.py`, which calls the agent-index log server's operator door (`POST /ops/releases`) to
+move each from `fixed-pending-release` to `fixed-released` with its repo's version. AWS credentials:
+`--creds <operator key>`, the `AWS_*` environment variables, or the `AWS_PROFILE`/default profile's static
+keys. A failure never fails the release; it prints the re-run command. `MARK_FIXES_ENV=dev` targets dev.
 `push_order` MUST end with `agent-index-resource-listings`. Only repos changed in the release belong
 in `repos`/`push_order`; adapters are flagged `is_adapter:true` so the build+checksum step runs only
 for them (no adapter steps when adapters are untouched).
