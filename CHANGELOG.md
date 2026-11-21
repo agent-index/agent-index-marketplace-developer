@@ -1,5 +1,12 @@
 ﻿# Developer Collection — Changelog
 
+## [1.19.0] — 2026-11-20 — plain-path authoring rule and Check 22 (CI-025)
+
+Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0.
+
+### Added
+- **`marketplace-eligibility.md` § "Addressing Org Locations"**: task files name org locations by plain path on every backend; `id:` only for member-owned content and content the catalog hands you. New optional `collection.json` field `requires_adapter`.
+- **Preflight Check 22** (`lib/preflight-cli.sh`, preflight task 1.12.0): flags per-backend addressing wording left in task files, as a WARNING. Files marked `<!-- ci025-addressing-exception -->` are skipped for one release. Checks 18–21 are DC-001's (1.16.0).
 ## [1.18.0] — 2026-11-16 — releases mark the forwarded bugs they fix
 
 Bug Reporting Platform (agent-index project `bug-admin-platform`, outcome 12).

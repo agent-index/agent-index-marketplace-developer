@@ -790,6 +790,31 @@ run_docs_check 20 'no heading in both CLAUDE.md.template and the reference docum
 IS_COLL=no; [[ "$MODE" == "collection" ]] && IS_COLL=yes
 run_docs_check 21 'api[] entries: object form; triggers route to their own entry' "$IS_COLL" 'adapter mode'
 
+# ── Check 22: per-backend addressing wording left in task files (CI-025, core 4.2.0) ─
+# Since core 4.2.0 + adapter gdrive 2.12.0 / onedrive 2.8.0 the executor resolves
+# org locations, so task files name them by plain path. Flags the old per-backend
+# addressing instructions. WARNING only: third-party collections may still target
+# pre-4.2 orgs. id:{member_folder_id} and catalog-supplied id:{item_drive_id}:{item_id}
+# (member-owned content) are allowed. A file can opt out for one release with the
+# marker comment "<!-- ci025-addressing-exception -->" (the update-path tasks).
+e22=${#ERRORS[@]}; w22=${#WARNINGS[@]}
+log "Check 22: per-backend addressing wording (plain paths since core 4.2.0)"
+ADDR_RE='id:\{[^}]*(folder_id|folderId|shared_root|org_config_id|members_registry|resource_ids)[^}]*\}|id:\{drive_id\}:\{[^}]*\}|On (Google Drive|gdrive)[^.]{0,80}by id|On OneDrive[^.]{0,80}by path|path-first|id-first|finding 63|memberpathreads'
+for d in api internal setup templates; do
+    [[ -d "$COLL/$d" ]] || continue
+    while IFS= read -r -d '' f; do
+        rel="${f#$COLL/}"
+        # The exception counts only as an HTML comment at the start of a line, not prose that names it.
+        grep -qE '^[[:space:]]*<!-- ci025-addressing-exception' "$f" 2>/dev/null && continue
+        # A member's own folder (id:{member_folder_id}) is owned content, addressed by id on purpose.
+        hits=$(sed -E 's/id:\{member_folder_id\}//g' "$f" 2>/dev/null | grep -nE "$ADDR_RE" | cut -d: -f1 | tr '\n' ',' | sed 's/,$//')
+        if [[ -n "$hits" ]]; then
+            warn "  $rel (line(s) $hits): per-backend addressing wording — since core 4.2.0 name org locations by plain path (marketplace-eligibility.md § Addressing Org Locations, developer collection)"
+        fi
+    done < <(find "$COLL/$d" -type f -name '*.md' -print0 2>/dev/null)
+done
+log "  errors: $(( ${#ERRORS[@]} - e22 )), warnings: $(( ${#WARNINGS[@]} - w22 ))"
+
 # ── Report ──────────────────────────────────────────────────────────────────
 log ""
 log "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
