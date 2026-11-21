@@ -1,6 +1,6 @@
 ﻿# Developer Collection — Changelog
 
-## [1.19.0] — <RELEASE_DATE> — plain-path authoring rule and Check 22 (CI-025)
+## [1.19.0] — 2026-11-20 — plain-path authoring rule and Check 22 (CI-025)
 
 Pairs with core 4.2.0 and filesystem adapter gdrive 2.12.0 / onedrive 2.8.0.
 
